@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "NexusChat"
+description = "A mobile-friendly chat web app with sign-up and login screens, a demo chat list, and interactive conversations. Uses local demo data for now, with Firebase Authentication and Cloud Firestore planned for a later phase."
+version = "1.0.0"
+id = "artifacts/nexuschat"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21030
+
+[services.development]
+run = "pnpm --filter @workspace/nexuschat run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/nexuschat", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/nexuschat/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21030"
+BASE_PATH = "/"
