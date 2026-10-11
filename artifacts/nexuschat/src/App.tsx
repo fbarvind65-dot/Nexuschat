@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
 import {
-  ArrowLeft, ArrowRight, CheckCheck, Eye, EyeOff, LockKeyhole,
+  ArrowLeft, ArrowRight, CheckCheck, Eye, EyeOff, LockKeyhole, LogIn,
   Mail, MessageCircle, Plus, Search, Send, ShieldCheck, Sparkles,
 } from 'lucide-react';
 import NotFound from '@/pages/not-found';
@@ -96,7 +96,7 @@ function Brand({ onClick }: { onClick?: () => void }) {
 }
 
 function Avatar({ user, small = false }: { user: User; small?: boolean }) {
-  return <div className={`avatar${small ? ' small' : ''}`} style={{ background: user.tint }} data-testid={`avatar-${user.id}`} aria-label={`${user.name} avatar`}>
+  return <div className={`avatar${small ? ' small' : ''}`} style={{ background: user.tint }} data-testid={`avatar-${user.id}`} role="img" aria-label={`${user.name} avatar`}>
     {user.avatar}{user.online && <span className="avatar-dot online" />}
   </div>;
 }
@@ -112,8 +112,8 @@ function ChatList({ activeId }: { activeId?: string }) {
     <div className="sidebar-intro"><span className="eyebrow">Your people, right here</span><h1>Messages<span style={{ color: '#d9795f' }}>.</span></h1></div>
     <div className="search-wrap"><Search size={16} /><input ref={searchRef} className="search-input" type="search" placeholder="Find a conversation" value={query} onChange={e => setQuery(e.target.value)} aria-label="Find a conversation" data-testid="input-search-conversations" /></div>
     <div className="filter-row" role="group" aria-label="Filter conversations">
-      <button className={`filter-chip${filter === 'all' ? ' active' : ''}`} onClick={() => setFilter('all')} data-testid="filter-all">All chats</button>
-      <button className={`filter-chip${filter === 'unread' ? ' active' : ''}`} onClick={() => setFilter('unread')} data-testid="filter-unread">Unread {conversations.some(c => c.unreadCount > 0) && <span>· {conversations.reduce((n,c) => n + c.unreadCount,0)}</span>}</button>
+      <button className={`filter-chip${filter === 'all' ? ' active' : ''}`} aria-pressed={filter === 'all'} onClick={() => setFilter('all')} data-testid="filter-all">All chats</button>
+      <button className={`filter-chip${filter === 'unread' ? ' active' : ''}`} aria-pressed={filter === 'unread'} onClick={() => setFilter('unread')} data-testid="filter-unread">Unread {conversations.some(c => c.unreadCount > 0) && <span>· {conversations.reduce((n,c) => n + c.unreadCount,0)}</span>}</button>
     </div>
     <div className="list-label"><span>{filter === 'unread' ? 'Unread messages' : 'Recent'}</span><span>{visible.length}</span></div>
     <div className="conversation-list" data-testid="list-conversations">
@@ -128,6 +128,11 @@ function ChatList({ activeId }: { activeId?: string }) {
     </div>
     <div className="sidebar-bottom"><div className="self-avatar" data-testid="avatar-me">AM</div><div className="self-meta"><div className="self-name" data-testid="text-current-user">{me.name}</div><div className="self-status">Here for the good chats</div></div></div>
     <div className="sidebar-auth"><Link href="/login" data-testid="link-login-sidebar">Log in</Link><Link href="/signup" data-testid="link-signup-sidebar">Create account</Link></div>
+    <nav className="mobile-bottom-nav" aria-label="Main navigation" data-testid="navigation-mobile">
+      <Link href="/" className="mobile-nav-item active" aria-current="page" data-testid="link-mobile-chats"><MessageCircle size={18} /><span>Chats</span></Link>
+      <button type="button" className="mobile-nav-item" onClick={() => { setFilter('all'); searchRef.current?.focus(); }} aria-label="Search conversations" data-testid="button-mobile-search"><Search size={18} /><span>Search</span></button>
+      <Link href="/login" className="mobile-nav-item" data-testid="link-mobile-account"><LogIn size={18} /><span>Account</span></Link>
+    </nav>
   </aside>;
 }
 
@@ -231,7 +236,7 @@ function AuthPage({ signup }: { signup: boolean }) {
       <span className="eyebrow">{signup ? 'Start with a hello' : 'Your conversations are waiting'}</span>
       <h2 data-testid="text-auth-title">{title}</h2>
       <p className="auth-lead">{signup ? 'A few details and you are ready to feel a little closer.' : 'Come on in. Pick up right where you left off.'}</p>
-      <div className="auth-notice"><ShieldCheck size={15} /><span>Demo experience only. Your details stay on this page and are never sent or stored.</span></div>
+      <div className="auth-notice" role="note"><ShieldCheck size={15} /><span>Demo form only. Nothing is sent, saved, or used to create an account.</span></div>
       <form className="auth-form" onSubmit={submit} data-testid={`form-${signup ? 'signup' : 'login'}`}>
         {signup && <div className="field"><label htmlFor="full-name">Your name</label><div className="field-input-wrap"><Sparkles size={15} /><input id="full-name" className="field-input" value={name} onChange={e => setName(e.target.value)} placeholder="How friends know you" autoComplete="name" required data-testid="input-name" /></div></div>}
         <div className="field"><label htmlFor="email">Email address</label><div className="field-input-wrap"><Mail size={15} /><input id="email" type="email" className="field-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required data-testid="input-email" /></div></div>

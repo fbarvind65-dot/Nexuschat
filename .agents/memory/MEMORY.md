@@ -1,0 +1,1 @@
+- [NexusChat Firebase security](nexuschat-firebase-security.md) — Future Firebase work must use authenticated, participant-scoped access; no permissive Firestore rules or client credentials.
