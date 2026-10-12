@@ -490,8 +490,14 @@ export default function App() {
       setOtp("");
       setLoginNotice("Verification code sent. Enter the 6-digit code.");
       resetRecaptcha();
-    } catch (error) {
+     } catch (error) {
       console.error("Firebase OTP error:", error);
+
+      const err = error;
+      const details = `${err.code || "unknown"}: ${err.message || "No message"}`;
+
+      alert("OTP Error: " + details);
+
       resetRecaptcha();
       setLoginError(getPhoneAuthErrorMessage(error, "send"));
     } finally {
