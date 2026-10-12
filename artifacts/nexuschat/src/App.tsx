@@ -457,14 +457,14 @@ export default function App() {
   async function sendOTP() {
     setLoginError("");
     setLoginNotice("");
-    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    const phone = normalizePhoneNumber(phoneNumber);
 
-    if (!normalizedPhone) {
+    if (!phone) {
       setLoginError("Enter a valid international number, such as +91 98765 43210.");
       return;
     }
 
-    setPhoneNumber(normalizedPhone);
+    setPhoneNumber(phone);
     setLoginLoading(true);
 
     try {
@@ -482,7 +482,7 @@ export default function App() {
 
       const result = await signInWithPhoneNumber(
         auth,
-        normalizedPhone,
+        phone,
         recaptchaRef.current,
       );
 
@@ -491,6 +491,7 @@ export default function App() {
       setLoginNotice("Verification code sent. Enter the 6-digit code.");
       resetRecaptcha();
     } catch (error) {
+      console.error("Firebase OTP error:", error);
       resetRecaptcha();
       setLoginError(getPhoneAuthErrorMessage(error, "send"));
     } finally {
@@ -576,6 +577,7 @@ export default function App() {
   textAlign: "center"
   }}>
   <div>
+  <h2>NexusChat</h2>
   <h2>NexusChat</h2>
 <p>Phone number se sign in karo</p>
 <div id="recaptcha-container"></div>
