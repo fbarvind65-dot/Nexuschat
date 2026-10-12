@@ -75,6 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "firebase": "^13.0.0"
+    "firebase": "^13.0.0",
+    "libphonenumber-js": "^1.13.15"
   }
 }

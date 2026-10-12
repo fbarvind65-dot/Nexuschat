@@ -8,6 +8,7 @@ signInWithPhoneNumber,
 type ConfirmationResult,
 type User,
 } from "firebase/auth";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { auth } from "./firebase";
 import {
   ArrowLeft,
@@ -47,9 +48,19 @@ type Chat = {
 };
 
 function normalizePhoneNumber(input: string): string | null {
-  const compact = input.trim().replace(/[\s().-]/g, "");
-  const phone = compact.startsWith("00") ? `+${compact.slice(2)}` : compact;
-  return /^\+[1-9]\d{1,14}$/.test(phone) ? phone : null;
+  const compact = input.trim().replace(/[\s()-]/g, "");
+  const international = compact.startsWith("00")
+    ? `+${compact.slice(2)}`
+    : compact;
+
+  // Require an explicit international prefix and digits only after formatting
+  // characters are removed. This prevents the parser from guessing a region.
+  if (!/^\+\d+$/.test(international)) return null;
+
+  const parsed = parsePhoneNumberFromString(international);
+  if (!parsed?.isValid() || parsed.ext) return null;
+
+  return parsed.number;
 }
 
 function getPhoneAuthErrorMessage(error: unknown, stage: "send" | "verify") {
