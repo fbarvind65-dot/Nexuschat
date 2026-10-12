@@ -457,14 +457,14 @@ export default function App() {
   async function sendOTP() {
     setLoginError("");
     setLoginNotice("");
-    const phone = normalizePhoneNumber(phoneNumber);
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
 
-    if (!phone) {
+    if (!normalizedPhone) {
       setLoginError("Enter a valid international number, such as +91 98765 43210.");
       return;
     }
 
-    setPhoneNumber(phone);
+    setPhoneNumber(normalizedPhone);
     setLoginLoading(true);
 
     try {
@@ -482,7 +482,7 @@ export default function App() {
 
       const result = await signInWithPhoneNumber(
         auth,
-        phone,
+        normalizedPhone,
         recaptchaRef.current,
       );
 
@@ -576,7 +576,6 @@ export default function App() {
   textAlign: "center"
   }}>
   <div>
-  <h2>NexusChat</h2>
   <h2>NexusChat</h2>
 <p>Phone number se sign in karo</p>
 <div id="recaptcha-container"></div>
