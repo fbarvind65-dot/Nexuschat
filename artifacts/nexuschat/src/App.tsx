@@ -272,20 +272,25 @@ const [updates, setUpdates] = useState<
 
 async function shareUpdate() {
   const text = updateDraft.trim();
+  const currentUser = user;
 
-  if (!text || !user) {
+  if (!text || !currentUser) {
     setNotice("Please log in to share an update.");
     return;
   }
+
+  const ownerId = currentUser.uid;
 
   try {
 
     const docRef = await addDoc(collection(db, "updates"), {
       text,
-      userId: user.uid,
-      userName: user.displayName || user.email || "NexusChat User",
+      userId: ownerId,
+      userName: currentUser.displayName || currentUser.email || "NexusChat User",
       createdAt: serverTimestamp(),
     });
+
+    if (auth.currentUser?.uid !== ownerId) return;
 
     setUpdates((prev) => [
       {
@@ -303,6 +308,7 @@ async function shareUpdate() {
     setNotice("Update shared successfully!");
 
   } catch (error) {
+    if (auth.currentUser?.uid !== ownerId) return;
     console.error("Share update failed:", error);
     setNotice("Could not share update. Check Firestore rules.");
   }
@@ -387,6 +393,7 @@ useEffect(() => {
         return [...savedGroups, ...nonGroupChats];
       });
      }catch (error) {
+      if (cancelled) return;
       console.error("Could not load groups:", error);
       setNotice("Could not load saved groups.");
     }
@@ -824,49 +831,51 @@ async function handleSignOut() {
           type="button"
           onClick={async () => {
             setNotice("Create Group button clicked!");
-  const name = newGroupName.trim();
+            const name = newGroupName.trim();
+            const ownerId = user?.uid;
 
-  if (!name) {
-    setNotice("Please enter a group name.");
-    return;
-  }
+            if (!name) {
+              setNotice("Please enter a group name.");
+              return;
+            }
 
-  
-const newChat: Chat = {
-  id: `group-${Date.now()}`,
-  name,
-  avatar: name.slice(0, 2).toUpperCase(),
-  color: "#2563eb",
-  online: false,
-  unread: 0,
-  messages: [],
-};
+            if (!ownerId) {
+              setNotice("Please log in first.");
+              return;
+            }
 
-if (!user) {
-  setNotice("Please log in first.");
-  return;
-}
+            const newChat: Chat = {
+              id: `group-${Date.now()}`,
+              name,
+              avatar: name.slice(0, 2).toUpperCase(),
+              color: "#2563eb",
+              online: false,
+              unread: 0,
+              messages: [],
+            };
 
-try {
-  await addDoc(collection(db, "groups"), {
-    ...newChat,
-    ownerId: user.uid,
-    createdAt: new Date(),
-  });
+            try {
+              await addDoc(collection(db, "groups"), {
+                ...newChat,
+                ownerId,
+                createdAt: new Date(),
+              });
 
-  setChats((previousChats) => [newChat, ...previousChats]);
-  setShowNewGroup(false);
-  setNewGroupName("");
-  setNotice(`Group "${name}" created successfully.`);
+              if (auth.currentUser?.uid !== ownerId) return;
 
-} catch (error) {
-  console.error("Group save failed:", error);
-  setNotice(
-    error instanceof Error
-      ? error.message
-      : String(error)
-  );
-}
+              setChats((previousChats) => [newChat, ...previousChats]);
+              setShowNewGroup(false);
+              setNewGroupName("");
+              setNotice(`Group "${name}" created successfully.`);
+            } catch (error) {
+              if (auth.currentUser?.uid !== ownerId) return;
+              console.error("Group save failed:", error);
+              setNotice(
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+              );
+            }
   }}
         > 
     
