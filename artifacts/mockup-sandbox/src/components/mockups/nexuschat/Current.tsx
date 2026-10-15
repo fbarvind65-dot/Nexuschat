@@ -101,6 +101,12 @@ function ChatList({ activeId, onOpen }: { activeId?: string; onOpen: (id: string
   const { conversations } = useChatData();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  
+const [updateDraft, setUpdateDraft] = useState("");
+const [updates, setUpdates] = useState<
+  { id: string; text: string; time: string }[]
+>([]);
+  
   const searchRef = useRef<HTMLInputElement>(null);
   const visible = conversations.filter(c => c.participant.name.toLowerCase().includes(query.trim().toLowerCase()) && (filter === 'all' || c.unreadCount > 0));
 

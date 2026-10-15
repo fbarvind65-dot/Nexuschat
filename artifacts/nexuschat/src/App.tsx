@@ -1,15 +1,25 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-onAuthStateChanged,
-signOut,
-RecaptchaVerifier,
-signInWithPhoneNumber,
-type ConfirmationResult,
-type User,
+  onAuthStateChanged,
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  type User,
 } from "firebase/auth";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
-import { auth } from "./firebase";
+
+import { auth, db } from "./firebase";
+
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+  orderBy,
+} from "firebase/firestore";
+
 import {
   ArrowLeft,
   CheckCheck,
@@ -21,13 +31,16 @@ import {
   Plus,
   Search,
   Send,
-  Settings,
+  Settings as SettingsIcon,
   Trash2,
   User as UserIcon,
   Phone,
   Video,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import Settings from "./Settings";
 
 type Message = {
   id: string;
@@ -46,59 +59,6 @@ type Chat = {
   unread: number;
   messages: Message[];
 };
-
-function normalizePhoneNumber(input: string): string | null {
-  const compact = input.trim().replace(/[\s()-]/g, "");
-  const international = compact.startsWith("00")
-    ? `+${compact.slice(2)}`
-    : compact;
-
-  // Require an explicit international prefix and digits only after formatting
-  // characters are removed. This prevents the parser from guessing a region.
-  if (!/^\+\d+$/.test(international)) return null;
-
-  const parsed = parsePhoneNumberFromString(international);
-  if (!parsed?.isValid() || parsed.ext) return null;
-
-  return parsed.number;
-}
-
-function getPhoneAuthErrorMessage(error: unknown, stage: "send" | "verify") {
-  const code =
-    typeof error === "object" && error !== null && "code" in error
-      ? String((error as { code?: unknown }).code ?? "")
-      : "";
-
-  switch (code) {
-    case "auth/invalid-phone-number":
-    case "auth/missing-phone-number":
-      return "Enter a valid phone number with its country code, such as +91 98765 43210.";
-    case "auth/captcha-check-failed":
-    case "auth/invalid-app-credential":
-    case "auth/missing-app-credential":
-      return "reCAPTCHA verification failed. Try again and check that this domain is authorized in Firebase.";
-    case "auth/unauthorized-domain":
-      return "This domain is not authorized for Firebase sign-in. Add it to Firebase Authentication's authorized domains.";
-    case "auth/operation-not-allowed":
-      return "Phone sign-in is not enabled for this Firebase project.";
-    case "auth/too-many-requests":
-      return "There have been too many attempts. Wait a while before trying again.";
-    case "auth/quota-exceeded":
-      return "The Firebase SMS quota has been reached. Try again later or check the project's SMS limits.";
-    case "auth/network-request-failed":
-      return "Could not reach Firebase. Check your internet connection and try again.";
-    case "auth/invalid-verification-code":
-    case "auth/missing-verification-code":
-      return "Enter the 6-digit code from the text message.";
-    case "auth/code-expired":
-    case "auth/session-expired":
-      return "That code has expired. Request a new code and try again.";
-    default:
-      return stage === "send"
-        ? "Could not send the code. Check the number and try again."
-        : "Could not verify that code. Check the 6 digits and try again.";
-  }
-}
 
 const initialChats: Chat[] = [
   {
@@ -168,7 +128,16 @@ function currentTime() {
     hour12: false,
   });
 }
-
+const menuButtonStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  padding: "10px 12px",
+  textAlign: "left",
+  background: "transparent",
+  border: "none",
+  color: "white",
+  cursor: "pointer",
+};
 const css = `
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,Arial,sans-serif;background:#0b1020;color:#eef0ff}
@@ -259,19 +228,100 @@ button{cursor:pointer}
 .messageRow{max-width:94%}
 .brand{padding-top:16px}
 }
+.auth-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#17264b 0,transparent 48%),#0b1020;color:#eef0ff}
+.auth-card{width:min(100%,430px);padding:clamp(24px,6vw,38px);border:1px solid #293552;border-radius:24px;background:linear-gradient(160deg,#151e34,#10172a 75%);box-shadow:0 24px 70px #020613a8}
+.auth-brand{display:flex;align-items:center;justify-content:center;gap:11px;margin-bottom:26px;font-size:22px;font-weight:800;letter-spacing:-.5px}
+.auth-brand-mark{width:42px;height:42px;display:grid;place-items:center;border:1px solid #7782ff55;border-radius:15px;background:linear-gradient(140deg,#5a8dff,#6754e8);box-shadow:0 8px 24px #476df044}
+.auth-brand-accent{color:#8c9dff}
+.auth-title{margin:0;text-align:center;font-size:25px;letter-spacing:-.6px}
+.auth-description{margin:9px 0 26px;text-align:center;color:#aab5d0;font-size:13px;line-height:1.6}
+.auth-field{display:block;margin:16px 0;color:#c9d1e6;font-size:12px;font-weight:650;text-align:left}
+.auth-input{width:100%;height:48px;margin-top:8px;padding:0 14px;border:1px solid #303c5b;border-radius:12px;outline:none;background:#0c1324;color:#f3f5ff;font-size:14px;transition:border-color .18s,box-shadow .18s}
+.auth-input::placeholder{color:#7885a4}
+.auth-input:focus{border-color:#7185ff;box-shadow:0 0 0 3px #7185ff26}
+.auth-password-wrap{position:relative}
+.auth-password-wrap .auth-input{padding-right:48px}
+.auth-visibility{position:absolute;right:6px;top:14px;display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:9px;background:transparent;color:#aab5d0}
+.auth-visibility:hover{background:#202b46;color:#fff}
+.auth-submit{width:100%;height:48px;margin-top:8px;border:0;border-radius:12px;background:linear-gradient(110deg,#4d8dff,#6758ec);color:#fff;font-weight:750;box-shadow:0 9px 22px #536ff033}
+.auth-submit:hover:not(:disabled){filter:brightness(1.08)}
+.auth-submit:disabled,.auth-switch:disabled{cursor:not-allowed;opacity:.65}
+.auth-switch{display:block;width:100%;margin-top:18px;padding:9px;border:0;background:transparent;color:#aebcff;font-size:13px;font-weight:650}
+.auth-switch:hover:not(:disabled){color:#fff}
+.auth-feedback{margin:14px 0 0;font-size:12px;line-height:1.5;text-align:left}
+.auth-error{color:#ff9ba7}
+.auth-success{color:#78e6ba}
+.auth-loading{color:#c5cdeb;font-size:14px}
+@media(max-width:480px){.auth-shell{padding:16px}.auth-card{border-radius:20px;padding:25px 21px}}
 `;
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
   const [authReady, setAuthReady] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [otp, setOtp] = useState("");
-  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
+  
+const [activeTab, setActiveTab] = useState<
+  "Chats" | "Updates" | "Communities" | "Calls"
+>("Chats");
+
+const [updateDraft, setUpdateDraft] = useState("");
+
+const [updates, setUpdates] = useState<
+  { id: string; text: string; time: string }[]
+>([]);
+
+async function shareUpdate() {
+  const text = updateDraft.trim();
+
+  if (!text || !user) {
+    setNotice("Please log in to share an update.");
+    return;
+  }
+
+  try {
+
+    const docRef = await addDoc(collection(db, "updates"), {
+      text,
+      userId: user.uid,
+      userName: user.displayName || user.email || "NexusChat User",
+      createdAt: serverTimestamp(),
+    });
+
+    setUpdates((prev) => [
+      {
+        id: docRef.id,
+        text,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      },
+      ...prev,
+    ]);
+
+    setUpdateDraft("");
+    setNotice("Update shared successfully!");
+
+  } catch (error) {
+    console.error("Share update failed:", error);
+    setNotice("Could not share update. Check Firestore rules.");
+  }
+}
+  
+const [showNewGroup, setShowNewGroup] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+const [newGroupName, setNewGroupName] = useState("");
+  const [emailAddress, setEmailAddress] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  
   const [loginError, setLoginError] = useState("");
   const [loginNotice, setLoginNotice] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [chats, setChats] = useState<Chat[]>(initialChats);
-  const [selectedId, setSelectedId] = useState<string | null>("1");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [draft, setDraft] = useState("");
@@ -287,26 +337,68 @@ export default function App() {
 
   const [newChatName, setNewChatName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setChats(initialChats);
+      setSelectedId(null);
       setAuthReady(true);
     });
 
     return unsubscribe;
   }, []);
-  useEffect(() => {
-    return () => {
-      try {
-        recaptchaRef.current?.clear();
-      } catch {
-        // Firebase may already have removed the widget during an auth transition.
-      }
-      recaptchaRef.current = null;
-    };
-  }, []);
+  
+useEffect(() => {
+  if (!user) return;
+  const ownerId = user.uid;
 
+  let cancelled = false;
+
+  async function loadGroups() {
+    try {
+      const groupsQuery = query(
+        collection(db, "groups"),
+        where("ownerId", "==", ownerId)
+      );
+
+      const snapshot = await getDocs(groupsQuery);
+
+      if (cancelled) return;
+
+      const savedGroups: Chat[] = snapshot.docs.map((doc) => {
+        const data = doc.data();
+
+        return {
+          id: doc.id,
+          name: data.name,
+          avatar: data.avatar,
+          color: data.color,
+          online: data.online ?? false,
+          unread: data.unread ?? 0,
+          messages: data.messages ?? [],
+        };
+      });
+
+      setChats((previousChats) => {
+        const nonGroupChats = previousChats.filter(
+          (chat) => !chat.id.startsWith("group-")
+        );
+
+        return [...savedGroups, ...nonGroupChats];
+      });
+     }catch (error) {
+      console.error("Could not load groups:", error);
+      setNotice("Could not load saved groups.");
+    }
+  }
+
+  void loadGroups();
+
+  return () => {
+    cancelled = true;
+  };
+}, [user]);
+  
   const selectedChat =
     chats.find((chat) => chat.id === selectedId) ?? null;
 
@@ -443,227 +535,516 @@ export default function App() {
     setModal(null);
     setNotice("Demo chat created.");
   }
-  function resetRecaptcha() {
-    const verifier = recaptchaRef.current;
-    recaptchaRef.current = null;
-    if (!verifier) return;
-    try {
-      verifier.clear();
-    } catch {
-      // The verifier can already be cleared after a failed or completed attempt.
-    }
-  }
-
-  async function sendOTP() {
+  async function sendEmailLogin(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     setLoginError("");
     setLoginNotice("");
-    const phone = normalizePhoneNumber(phoneNumber);
 
-    if (!phone) {
-      setLoginError("Enter a valid international number, such as +91 98765 43210.");
+    const email = emailAddress.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLoginError("Enter a valid email address.");
+      return;
+    }
+    if (password.length < 6) {
+      setLoginError("Password must be at least 6 characters.");
+      return;
+    }
+    if (isRegistering && password !== confirmPassword) {
+      setLoginError("The passwords do not match.");
       return;
     }
 
-    setPhoneNumber(phone);
     setLoginLoading(true);
-
     try {
-      if (!document.getElementById("recaptcha-container")) {
-        throw new Error("The reCAPTCHA container is unavailable.");
+      if (isRegistering) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
       }
 
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(
-          auth,
-          "recaptcha-container",
-          {},
-        );
-      }
+      const successMessage = isRegistering
+        ? "Your NexusChat account is ready."
+        : "You are signed in.";
+      setLoginNotice(successMessage);
+      setNotice(successMessage);
+      setPassword("");
+      setConfirmPassword("");
+    } catch (error: unknown) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String(error.code)
+          : "";
 
-      const result = await signInWithPhoneNumber(
-        auth,
-        phone,
-        recaptchaRef.current,
+      const messages: Record<string, string> = {
+        "auth/invalid-email": "Enter a valid email address.",
+        "auth/invalid-credential": "Email or password is incorrect.",
+        "auth/user-not-found": "No account was found for that email.",
+        "auth/wrong-password": "Email or password is incorrect.",
+        "auth/email-already-in-use": "An account already exists for that email. Try signing in.",
+        "auth/weak-password": "Choose a password with at least 6 characters.",
+        "auth/operation-not-allowed": "Enable Email/Password sign-in in Firebase Authentication.",
+        "auth/network-request-failed": "Could not reach Firebase. Check your connection and try again.",
+        "auth/too-many-requests": "Too many attempts. Wait a while and try again.",
+        "auth/user-disabled": "This account is disabled. Contact the app administrator.",
+      };
+      setLoginError(
+        messages[code] ??
+          "Could not complete authentication. Check your details and try again.",
       );
-
-      setConfirmation(result);
-      setOtp("");
-      setLoginNotice("Verification code sent. Enter the 6-digit code.");
-      resetRecaptcha();
-     } catch (error) {
-      console.error("Firebase OTP error:", error);
-
-      const err = error;
-      const details = `${err.code || "unknown"}: ${err.message || "No message"}`;
-
-      alert("OTP Error: " + details);
-
-      resetRecaptcha();
-      setLoginError(getPhoneAuthErrorMessage(error, "send"));
     } finally {
       setLoginLoading(false);
     }
   }
-
-  async function verifyOTP() {
-    setLoginError("");
-    setLoginNotice("");
-
-    if (!confirmation) {
-      setLoginError("Request a verification code first.");
-      return;
-    }
-
-    const code = otp.trim();
-    if (!/^\d{6}$/.test(code)) {
-      setLoginError("Enter the 6-digit verification code.");
-      return;
-    }
-
-    setLoginLoading(true);
-    try {
-      await confirmation.confirm(code);
-      resetRecaptcha();
-    } catch (error) {
-      setLoginError(getPhoneAuthErrorMessage(error, "verify"));
-    } finally {
-      setLoginLoading(false);
-    }
+  
+async function handleSignOut() {
+  try {
+    await signOut(auth);
+  } catch {
+    setNotice("Could not sign out. Please try again.");
   }
-
-  function changePhoneNumber() {
-    resetRecaptcha();
-    setConfirmation(null);
-    setPhoneNumber("");
-    setOtp("");
-    setLoginError("");
-    setLoginNotice("");
-  }
-
-  async function resendOTP() {
-    resetRecaptcha();
-    setConfirmation(null);
-    setOtp("");
-    await sendOTP();
-  }
-
-  async function handleSignOut() {
-    resetRecaptcha();
-    setConfirmation(null);
-    setOtp("");
-    try {
-      await signOut(auth);
-    } catch {
-      setNotice("Could not sign out. Please try again.");
-    }
-  }
+}
+  
   if (!authReady) {
-  return (
-  <div style={{
-  minHeight: "100vh",
-  display: "grid",
-  placeItems: "center",
-  background: "#0b1020",
-  color: "white"
-  }}>
-  Checking account...
-  </div>
-  );
+    return (
+      <>
+        <style>{css}</style>
+        <main className="auth-shell">
+          <div className="auth-loading" role="status">Checking your account…</div>
+        </main>
+      </>
+    );
   }
 
   if (!user) {
-  return (
-  <div style={{
-  minHeight: "100vh",
-  display: "grid",
-  placeItems: "center",
-  background: "#0b1020",
-  color: "white",
-  padding: 24,
-  textAlign: "center"
-  }}>
-  <div>
-  <h2>NexusChat</h2>
-  <h2>NexusChat</h2>
-<p>Phone number se sign in karo</p>
-<div id="recaptcha-container"></div>
-{!confirmation ? (
-<>
-<input
-type="tel"
-placeholder="+919876543210"
-autoComplete="tel"
-inputMode="tel"
-maxLength={25}
-aria-label="Phone number with country code"
-value={phoneNumber}
-onChange={(e) => setPhoneNumber(e.target.value)}
-onKeyDown={(e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    void sendOTP();
-  }
-}}
-/>
-<button type="button" onClick={sendOTP} disabled={loginLoading}>
-{loginLoading ? "Sending..." : "Send OTP"}
-</button>
-</>
-) : (
-<>
-<input
-type="text"
-inputMode="numeric"
-autoComplete="one-time-code"
-maxLength={6}
-pattern="[0-9]{6}"
-aria-label="6-digit verification code"
-placeholder="OTP enter karo"
-value={otp}
-onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-onKeyDown={(e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    void verifyOTP();
-  }
-}}
-/>
-<button type="button" onClick={verifyOTP} disabled={loginLoading}>
-{loginLoading ? "Verifying..." : "Verify OTP"}
-</button>
-<button type="button" onClick={resendOTP} disabled={loginLoading}>
-Resend code
-</button>
-<button type="button" onClick={changePhoneNumber} disabled={loginLoading}>
-Use a different number
-</button>
-</>
-)}
+    return (
+      <>
+        <style>{css}</style>
+        <main className="auth-shell">
+          <section className="auth-card" aria-labelledby="auth-title">
+            <div className="auth-brand">
+              <span className="auth-brand-mark" aria-hidden="true">
+                <MessageCircle size={21} />
+              </span>
+              <span>
+                Nexus<span className="auth-brand-accent">Chat</span>
+              </span>
+            </div>
 
-{loginError && <p role="alert">{loginError}</p>}
-{loginNotice && <p role="status">{loginNotice}</p>}
-  </div>
-  </div>
+            <h1 id="auth-title" className="auth-title">
+              {isRegistering ? "Create your account" : "Welcome back"}
+            </h1>
+            <p className="auth-description">
+              {isRegistering
+                ? "Sign up with email and password to get started."
+                : "Sign in to continue to your conversations."}
+            </p>
+
+            <form
+              onSubmit={(event) => void sendEmailLogin(event)}
+              aria-busy={loginLoading}
+            >
+              <label className="auth-field">
+                Email address
+                <input
+                  className="auth-input"
+                  type="email"
+                  name="email"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  required
+                  value={emailAddress}
+                  onChange={(event) => setEmailAddress(event.target.value)}
+                  disabled={loginLoading}
+                />
+              </label>
+
+              <label className="auth-field">
+                Password
+                <span className="auth-password-wrap">
+                  <input
+                    className="auth-input"
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    placeholder="At least 6 characters"
+                    autoComplete={
+                      isRegistering ? "new-password" : "current-password"
+                    }
+                    minLength={6}
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    disabled={loginLoading}
+                  />
+                  <button
+                    className="auth-visibility"
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    disabled={loginLoading}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </span>
+              </label>
+
+              {isRegistering && (
+                <label className="auth-field">
+                  Confirm password
+                  <input
+                    className="auth-input"
+                    type={showPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    placeholder="Re-enter your password"
+                    autoComplete="new-password"
+                    minLength={6}
+                    required
+                    value={confirmPassword}
+                    onChange={(event) =>
+                      setConfirmPassword(event.target.value)
+                    }
+                    disabled={loginLoading}
+                  />
+                </label>
+              )}
+
+              {loginError && (
+                <p className="auth-feedback auth-error" role="alert">
+                  {loginError}
+                </p>
+              )}
+              {loginNotice && (
+                <p className="auth-feedback auth-success" role="status">
+                  {loginNotice}
+                </p>
+              )}
+
+              <button
+                className="auth-submit"
+                type="submit"
+                disabled={loginLoading}
+              >
+                {loginLoading
+                  ? isRegistering
+                    ? "Creating account…"
+                    : "Signing in…"
+                  : isRegistering
+                    ? "Create account"
+                    : "Log in"}
+              </button>
+            </form>
+
+            <button
+              className="auth-switch"
+              type="button"
+              disabled={loginLoading}
+              onClick={() => {
+                setIsRegistering((registering) => !registering);
+                setConfirmPassword("");
+                setPassword("");
+                setLoginError("");
+                setLoginNotice("");
+              }}
+            >
+              {isRegistering
+                ? "Already have an account? Log in"
+                : "New to NexusChat? Create an account"}
+            </button>
+          </section>
+        </main>
+      </>
+    );
+  }
+  if (showSettings) {
+  return (
+    <Settings
+      onBack={() => {
+        setShowSettings(false);
+        setSelectedId(null);
+      }}
+    />
   );
   }
 
-  return (
+ return (
     <>
       <style>{css}</style>
+{showNewGroup && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 1000,
+      background: "#0009",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: "#172338",
+        padding: 24,
+        borderRadius: 14,
+        width: "100%",
+        maxWidth: 360,
+        color: "white",
+      }}
+    >
+      <h2>New Group</h2>
 
+      <input
+        value={newGroupName}
+        onChange={(event) => setNewGroupName(event.target.value)}
+        placeholder="Enter group name"
+        style={{
+          width: "100%",
+          padding: 12,
+          marginBottom: 16,
+          borderRadius: 8,
+          border: "1px solid #30415a",
+          background: "#0b1020",
+          color: "white",
+        }}
+      />
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => {
+            setShowNewGroup(false);
+            setNewGroupName("");
+          }}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          onClick={async () => {
+            setNotice("Create Group button clicked!");
+  const name = newGroupName.trim();
+
+  if (!name) {
+    setNotice("Please enter a group name.");
+    return;
+  }
+
+  
+const newChat: Chat = {
+  id: `group-${Date.now()}`,
+  name,
+  avatar: name.slice(0, 2).toUpperCase(),
+  color: "#2563eb",
+  online: false,
+  unread: 0,
+  messages: [],
+};
+
+if (!user) {
+  setNotice("Please log in first.");
+  return;
+}
+
+try {
+  await addDoc(collection(db, "groups"), {
+    ...newChat,
+    ownerId: user.uid,
+    createdAt: new Date(),
+  });
+
+  setChats((previousChats) => [newChat, ...previousChats]);
+  setShowNewGroup(false);
+  setNewGroupName("");
+  setNotice(`Group "${name}" created successfully.`);
+
+} catch (error) {
+  console.error("Group save failed:", error);
+  setNotice(
+    error instanceof Error
+      ? error.message
+      : String(error)
+  );
+}
+  }}
+        > 
+    
+          Create Group
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       <div className={`app ${selectedChat ? "showChat" : ""}`}>
+        
+{!selectedChat && (
+  <nav
+    style={{
+      position: "fixed",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 100,
+      display: "flex",
+      justifyContent: "space-around",
+      background: "#101a2b",
+      borderTop: "1px solid #26364b",
+      padding: "10px 4px",
+    }}
+  >
+    {([
+      { name: "Chats", icon: "💬" },
+      { name: "Updates", icon: "⭕" },
+      { name: "Communities", icon: "👥" },
+      { name: "Calls", icon: "📞" },
+    ] as const).map((tab) => (
+      <button
+        key={tab.name}
+        type="button"
+        onClick={() => setActiveTab(tab.name)}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 4,
+          border: 0,
+          background: activeTab === tab.name ? "#263b4c" : "transparent",
+          color: activeTab === tab.name ? "#65e6b2" : "#c5cfdb",
+          borderRadius: 10,
+          padding: "8px 10px",
+          fontSize: 12,
+        }}
+      >
+        <span style={{ fontSize: 20 }}>{tab.icon}</span>
+        <span>{tab.name}</span>
+      </button>
+    ))}
+  </nav>
+)}
+        
         <aside className="sidebar">
-          <div className="brand">
-            <div className="brandIcon">
-              <MessageCircle size={22} color="white" />
-            </div>
+          <div
+  className="brand"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    position: "relative",
+  }}
+>
+  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div className="brandIcon">
+      <MessageCircle size={22} color="white" />
+    </div>
 
-            <span>
-              Nexus<span className="brandAccent">Chat</span>
-            </span>
-          </div>
+    <span>
+      Nexus<span className="brandAccent">Chat</span>
+    </span>
+  </div>
 
-          <div className="searchWrap">
+  <button
+    type="button"
+    aria-label="More options"
+    onClick={() => setShowMenu((previous) => !previous)}
+    style={{
+      background: "transparent",
+      border: "none",
+      color: "white",
+      fontSize: 26,
+      cursor: "pointer",
+      padding: "4px 10px",
+    }}
+  >
+    ⋮
+  </button>
+</div>
+
+          <div className="searchWrap"> 
+            {showMenu && (
+  <div
+    style={{
+      position: "absolute",
+      right: 12,
+      top: 58,
+      zIndex: 200,
+      background: "#172338",
+      border: "1px solid #30415a",
+      borderRadius: 10,
+      padding: 8,
+      minWidth: 190,
+      boxShadow: "0 8px 24px #0006",
+    }}
+  >
+    <button
+      type="button"
+      onClick={() => {
+  setShowMenu(false);
+  setShowNewGroup(true);
+}}
+      style={menuButtonStyle}
+    >
+      👥 New Group
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setShowMenu(false);
+        setNotice("New Community selected.");
+      }}
+      style={menuButtonStyle}
+    >
+      🌐 New Community
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setShowMenu(false);
+        setNotice("Broadcast List selected.");
+      }}
+      style={menuButtonStyle}
+    >
+      📢 Broadcast List
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setShowMenu(false);
+        setNotice("Profile settings coming soon.");
+      }}
+      style={menuButtonStyle}
+    >
+      Profile
+    </button>
+
+    
+<button
+  type="button"
+  onClick={() => {
+    setShowMenu(false);
+    setShowSettings(true);
+  }}
+  style={menuButtonStyle}
+>
+  Settings
+</button>
+    
+
+    <button
+      type="button"
+      onClick={() => {
+        setShowMenu(false);
+        void handleSignOut();
+      }}
+      style={menuButtonStyle}
+    >
+      Logout
+    </button>
+  </div>
+)}
             <Search size={17} />
 
             <input
@@ -694,7 +1075,41 @@ Use a different number
             </button>
           </div>
 
-          <div className="sectionLabel">Messages</div>
+          {activeTab === "Updates" ? (
+  <div style={{ padding: 16, color: "#eaf0ff" }}>
+    <h2>Updates</h2>
+
+    <textarea
+      value={updateDraft}
+      onChange={(e) => setUpdateDraft(e.target.value)}
+      placeholder="What's on your mind?"
+      maxLength={500}
+      style={{
+        width: "100%",
+        minHeight: 100,
+        padding: 12,
+        borderRadius: 12,
+        boxSizing: "border-box",
+      }}
+    />
+
+<button
+  type="button"
+  onClick={shareUpdate}  
+  >
+      Share Update
+    </button>
+
+    {updates.map((item) => (
+      <div key={item.id} style={{ padding: 12 }}>
+        <p>{item.text}</p>
+        <small>{item.time}</small>
+      </div>
+    ))}
+  </div>
+) : (
+  <div className="sectionLabel">Messages</div>
+)}
 
           <div className="chatList">
             {visibleChats.map((chat) => {
@@ -769,7 +1184,7 @@ Use a different number
               title="Account menu"
               onClick={() => setMenuOpen((open) => !open)}
             >
-              <Settings size={18} />
+              <SettingsIcon size={18} />
             </button>
           </div>
         </aside>
@@ -893,6 +1308,17 @@ Use a different number
                         <LogOut size={15} />
                         Sign out
                       </button>
+                      
+<button
+  onClick={() => {
+    setMenuOpen(false);
+    setShowSettings(true);
+  }}
+>
+  <SettingsIcon size={18} />
+  Settings
+</button>
+                      
                     </div>
                   )}
                 </div>
