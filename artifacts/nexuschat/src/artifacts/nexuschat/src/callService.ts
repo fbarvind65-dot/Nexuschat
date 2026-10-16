@@ -219,4 +219,196 @@ export async function startCall(
           data.answer &&
           !peer.remoteDescription &&
           !settingAnswer
-        )
+        ){
+          settingAnswer = true;
+
+          try {
+            await peer.setRemoteDescription(data.answer);
+
+            for (const candidate of pendingCandidates) {
+              await peer.addIceCandidate(candidate);
+            }
+
+            pendingCandidates.length = 0;
+          } catch (error) {
+            console.error("Could not set answer:", error);
+            callbacks.onStatus?.("failed");
+          } finally {
+            settingAnswer = false;
+          }
+}
+        }
+
+        if (
+          data.status === "ended" ||
+          data.status === "declined"
+        ) {
+          callbacks.onStatus?.(data.status);
+          void session.endCall();
+      })
+    );
+
+    unsubscribers.push(
+      onSnapshot(
+        collection(callRef, "calleeCandidates"),
+        (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type !== "added") return;
+
+            const candidate =
+              change.doc.data().candidate as RTCIceCandidateInit;
+
+            if (peer.remoteDescription) {
+              void peer.addIceCandidate(candidate).catch(
+                console.error
+              );
+            } else {
+              pendingCandidates.push(candidate);
+            }
+          });
+        }
+      )
+      );
+
+    return session;
+  } catch (error) {
+    unsubscribers.forEach((unsubscribe) => unsubscribe());
+    peer.close();
+    stream.getTracks().forEach((track) => track.stop());
+
+    throw error;
+  }
+}
+
+export async function acceptCall(
+  db: Firestore,
+  callId: string,
+  currentUserId: string,
+  callbacks: CallCallbacks = {}
+): Promise<CallSession> {
+  const callRef = doc(db, "calls", callId);
+  const snapshot = await getDoc(callRef);
+
+  if (!snapshot.exists()) {
+    throw new Error("This call no longer exists.");
+  }
+
+  const call = snapshot.data();
+
+  if (call.calleeId !== currentUserId) {
+    throw new Error("You are not the intended recipient.");
+  }
+
+  if (call.status !== "ringing" || !call.offer) {
+    throw new Error("This call is no longer available.");
+  }
+
+  const type = call.type as CallType;
+  const stream = await getMedia(type);
+  const peer = createPeer();
+  const unsubscribers: Unsubscribe[] = [];
+
+  try {
+    preparePeer(peer, stream, callbacks);
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        void addDoc(
+          collection(callRef, "calleeCandidates"),
+          {
+            candidate: event.candidate.toJSON(),
+            createdAt: serverTimestamp(),
+          }
+        );
+      }
+    };
+
+    await peer.setRemoteDescription(call.offer);
+
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+
+    await updateDoc(callRef, {
+      answer: {
+        type: answer.type,
+        sdp: answer.sdp,
+      },
+      status: "accepted",
+      acceptedAt: serverTimestamp(),
+    });
+
+    const session = makeSession(
+      db,
+      callId,
+      peer,
+      stream,
+      callbacks,
+      unsubscribers
+    );
+
+    unsubscribers.push(
+      onSnapshot(
+        collection(callRef, "callerCandidates"),
+        (candidateSnapshot) => {
+          candidateSnapshot.docChanges().forEach((change) => {
+            if (change.type !== "added") return;
+
+            const candidate =
+              change.doc.data().candidate as RTCIceCandidateInit;
+
+            void peer.addIceCandidate(candidate).catch(
+              console.error
+            );
+          });
+        }
+      )
+    );
+
+    unsubscribers.push(
+      onSnapshot(callRef, (latestSnapshot) => {
+        const latest = latestSnapshot.data();
+
+        if (
+          latest?.status === "ended" ||
+          latest?.status === "declined"
+          ) {
+          callbacks.onStatus?.(latest.status);
+          void session.endCall();
+        }
+      })
+    );
+
+    return session;
+  } catch (error) {
+    unsubscribers.forEach((unsubscribe) => unsubscribe());
+    peer.close();
+    stream.getTracks().forEach((track) => track.stop());
+    throw error;
+  }
+}
+
+export async function rejectCall(
+  db: Firestore,
+  callId: string,
+  currentUserId: string
+): Promise<void> {
+  const callRef = doc(db, "calls", callId);
+  const snapshot = await getDoc(callRef);
+
+  if (!snapshot.exists()) {
+    throw new Error("This call no longer exists.");
+  }
+
+  if (snapshot.data().calleeId !== currentUserId) {
+    throw new Error("You cannot reject another user's call.");
+  }
+
+  if (snapshot.data().status !== "ringing") {
+    throw new Error("This call is no longer available.");
+    }
+
+  await updateDoc(callRef, {
+    status: "declined",
+    endedAt: serverTimestamp(),
+  });
+}
