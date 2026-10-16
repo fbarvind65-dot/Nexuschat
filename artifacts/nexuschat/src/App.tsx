@@ -9,6 +9,15 @@ import {
 } from "firebase/auth";
 
 import { auth, db } from "./firebase";
+import {
+  startCall,
+  watchIncomingCalls,
+  acceptCall,
+  rejectCall,
+  type CallSession,
+  type IncomingCall,
+  type CallType,
+} from "./callService";
 
 import {
 collection,
