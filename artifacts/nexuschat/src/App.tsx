@@ -11,13 +11,17 @@ import {
 import { auth, db } from "./firebase";
 
 import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
-  orderBy,
+collection,
+addDoc,
+getDocs,
+query,
+where,
+serverTimestamp,
+orderBy,
+doc,
+setDoc,
+updateDoc,
+arrayUnion,
 } from "firebase/firestore";
 
 import {
@@ -456,7 +460,8 @@ useEffect(() => {
     setMenuOpen(false);
   }
 
-  function sendMessage() {
+  
+  async function sendMessage() {
     const text = draft.trim();
 
     if (!text || !selectedChat) return;
@@ -468,13 +473,56 @@ useEffect(() => {
       time: currentTime(),
     };
 
-    updateChat(selectedChat.id, (chat) => ({
-      ...chat,
-      messages: [...chat.messages, message],
-    }));
+    const isGroup = selectedChat.id.startsWith("group-");
+    const ownerId = auth.currentUser?.uid;
 
-    setDraft("");
+    try {
+      if (isGroup) {
+        if (!ownerId) {
+          setNotice("Please log in first.");
+          return;
+        }
+
+        const groupSnapshot = await getDocs(
+          query(
+            collection(db, "groups"),
+            where("id", "==", selectedChat.id),
+            where("ownerId", "==", ownerId)
+          )
+        );
+
+        const groupDocument = groupSnapshot.docs[0];
+
+        if (!groupDocument) {
+          throw new Error("Saved group not found.");
+        }
+
+        await updateDoc(groupDocument.ref, {
+          messages: arrayUnion(message),
+        });
+      }
+
+      updateChat(selectedChat.id, (chat) => ({
+        ...chat,
+        messages: [...chat.messages, message],
+      }));
+
+      setDraft("");
+      setNotice(
+        isGroup
+          ? "Message sent and saved."
+          : "Message sent in this demo chat."
+      );
+    } catch (error: unknown) {
+      console.error("Message save failed:", error);
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not save the message."
+      );
+    }
   }
+  
 
   async function copyMessage(message: Message) {
     try {
@@ -485,10 +533,44 @@ useEffect(() => {
     }
   }
 
-  function deleteMessage(message: Message) {
-    if (!selectedChat) return;
+  async function deleteMessage(message: Message) {
+  if (!selectedChat) return;
 
-    updateChat(selectedChat.id, (chat) => ({
+  const chatId = selectedChat.id;
+  const isGroup = chatId.startsWith("group-");
+  const ownerId = auth.currentUser?.uid;
+
+  const updatedMessages = selectedChat.messages.filter(
+    (item) => item.id !== message.id
+  );
+
+  try {
+    if (isGroup) {
+      if (!ownerId) {
+        setNotice("Please log in first.");
+        return;
+      }
+
+      const groupSnapshot = await getDocs(
+        query(
+          collection(db, "groups"),
+          where("id", "==", chatId),
+          where("ownerId", "==", ownerId)
+        )
+      );
+
+      const groupDocument = groupSnapshot.docs[0];
+
+      if (!groupDocument) {
+        throw new Error("Saved group not found.");
+      }
+
+      await updateDoc(groupDocument.ref, {
+        messages: updatedMessages,
+      });
+    }
+
+    updateChat(chatId, (chat) => ({
       ...chat,
       messages: chat.messages.filter(
         (item) => item.id !== message.id
@@ -496,7 +578,21 @@ useEffect(() => {
     }));
 
     setModal(null);
-    setNotice("Message removed from this demo chat.");
+
+    setNotice(
+      isGroup
+        ? "Group message deleted."
+        : "Message removed from this demo chat."
+    );
+  } catch (error: unknown) {
+    console.error("Message delete failed:", error);
+
+    setNotice(
+      error instanceof Error
+        ? error.message
+        : "Could not delete the message."
+    );
+  }
   }
 
   function forwardMessage(
@@ -855,11 +951,11 @@ async function handleSignOut() {
             };
 
             try {
-              await addDoc(collection(db, "groups"), {
-                ...newChat,
-                ownerId,
-                createdAt: new Date(),
-              });
+              await setDoc(doc(db, "groups", newChat.id), {
+  ...newChat,
+  ownerId,
+  createdAt: serverTimestamp(),
+});
 
               if (auth.currentUser?.uid !== ownerId) return;
 

@@ -21,3 +21,9 @@ timeoutMs = 20000
 
 [[ports]]
 localPort = 5000
+
+[[ports]]
+localPort = 21030
+
+[nix]
+packages = ["psmisc"]
