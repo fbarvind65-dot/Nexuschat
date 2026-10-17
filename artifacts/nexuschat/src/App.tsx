@@ -287,10 +287,6 @@ useEffect(() => {
       setIncomingCalls(calls);
     }
   );
-
-  return () => unsubscribe();
-}, [user]);
-  
   return () => unsubscribe();
 }, [user]);
   const [showMenu, setShowMenu] = useState(false);
