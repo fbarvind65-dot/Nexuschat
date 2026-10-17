@@ -270,6 +270,9 @@ button{cursor:pointer}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [incomingCalls, setIncomingCalls] = useState<IncomingCall[]>([]);
+const [activeCall, setActiveCall] = useState<CallSession | null>(null);
+const [callStatus, setCallStatus] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   
