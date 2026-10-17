@@ -376,13 +376,32 @@ const [newGroupName, setNewGroupName] = useState("");
   const [newChatName, setNewChatName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setChats(initialChats);
-      setSelectedId(null);
-      setAuthReady(true);
-    });
+      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+  setUser(currentUser);
+  setChats(initialChats);
+  setSelectedId(null);
+  setAuthReady(true);
 
+  if (currentUser) {
+    const displayName =
+      currentUser.displayName?.trim() ||
+      currentUser.email?.split("@")[0] ||
+      "NexusChat User";
+
+    void setDoc(
+      doc(db, "users", currentUser.uid),
+      {
+        uid: currentUser.uid,
+        displayName,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    ).catch((error) => {
+      console.error("User profile save failed:", error);
+    });
+  }
+});
+    
     return unsubscribe;
   }, []);
   
