@@ -17,7 +17,7 @@ import {
   type CallSession,
   type IncomingCall,
   type CallType,
-} from "./callService";
+} from "./artifacts/nexuschat/src/callService";
 
 import {
 collection,
