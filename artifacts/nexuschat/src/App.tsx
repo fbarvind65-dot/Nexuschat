@@ -273,11 +273,24 @@ export default function App() {
   const [incomingCalls, setIncomingCalls] = useState<IncomingCall[]>([]);
 const [activeCall, setActiveCall] = useState<CallSession | null>(null);
 const [callStatus, setCallStatus] = useState("");
-  useEffect(() => {
+  
+useEffect(() => {
   if (!user) {
     setIncomingCalls([]);
     return;
   }
+
+  const unsubscribe = watchIncomingCalls(
+    db,
+    user.uid,
+    (calls) => {
+      setIncomingCalls(calls);
+    }
+  );
+
+  return () => unsubscribe();
+}, [user]);
+  
 
   const unsubscribe = watchIncomingCalls(
     user.uid,
