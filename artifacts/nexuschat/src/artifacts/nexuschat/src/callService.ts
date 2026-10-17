@@ -207,6 +207,7 @@ export async function startCall(
       unsubscribers
     );
 
+    
     let settingAnswer = false;
     const pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -219,7 +220,7 @@ export async function startCall(
           data.answer &&
           !peer.remoteDescription &&
           !settingAnswer
-        ){
+        ) {
           settingAnswer = true;
 
           try {
@@ -236,7 +237,6 @@ export async function startCall(
           } finally {
             settingAnswer = false;
           }
-}
         }
 
         if (
@@ -245,8 +245,10 @@ export async function startCall(
         ) {
           callbacks.onStatus?.(data.status);
           void session.endCall();
+        }
       })
     );
+    
 
     unsubscribers.push(
       onSnapshot(
