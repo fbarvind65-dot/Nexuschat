@@ -1458,6 +1458,85 @@ async function handleSignOut() {
               </header>
 
               {notice && <div className="notice">{notice}</div>}
+              
+{incomingCalls.map((call) => (
+  <div
+    key={call.id}
+    className="notice"
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap",
+    }}
+  >
+    <span>Incoming {call.type} call</span>
+
+    <div style={{ display: "flex", gap: 8 }}>
+      <button
+        className="primaryBtn"
+        onClick={async () => {
+          if (!user) return;
+
+          try {
+            setCallStatus("Connecting...");
+            const session = await acceptCall(
+              db,
+              call.id,
+              user.uid,
+              {
+                onStatus: (status) => {
+                  setCallStatus(String(status));
+                },
+              }
+            );
+
+            setActiveCall(session);
+            setCallStatus("Call connected");
+            setNotice("Call accepted.");
+          } catch (error) {
+            console.error("Accept call failed:", error);
+            setCallStatus("Could not accept call.");
+            setNotice(
+              error instanceof Error
+                ? error.message
+                : "Could not accept call."
+            );
+          }
+        }}
+      >
+        Accept
+      </button>
+
+      <button
+        className="secondaryBtn"
+        onClick={async () => {
+          if (!user) return;
+
+          try {
+            await rejectCall(db, call.id, user.uid);
+            setNotice("Call declined.");
+          } catch (error) {
+            console.error("Reject call failed:", error);
+            setNotice(
+              error instanceof Error
+                ? error.message
+                : "Could not reject call."
+            );
+          }
+        }}
+      >
+        Reject
+      </button>
+    </div>
+  </div>
+))}
+
+{callStatus && (
+  <div className="notice">{callStatus}</div>
+)}
+              
 
               <section className="messages">
                 <div className="day">TODAY</div>
