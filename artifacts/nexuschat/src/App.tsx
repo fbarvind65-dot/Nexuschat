@@ -291,14 +291,6 @@ useEffect(() => {
   return () => unsubscribe();
 }, [user]);
   
-
-  const unsubscribe = watchIncomingCalls(
-    user.uid,
-    (calls) => {
-      setIncomingCalls(calls);
-    }
-  );
-
   return () => unsubscribe();
 }, [user]);
   const [showMenu, setShowMenu] = useState(false);
