@@ -1398,13 +1398,21 @@ async function handleSignOut() {
   <Phone size={19} />
 </button>
 
+
 <button
   className="iconBtn"
   title="Video call"
-  onClick={() => alert("Video calling setup abhi baaki hai")}
+  onClick={() => {
+    setNotice(
+      selectedChat?.id.startsWith("group-")
+        ? "Group video calling is not available yet."
+        : "Real video calling needs the other user's Firebase UID. Demo chats cannot receive calls yet."
+    );
+  }}
 >
   <Video size={19} />
 </button>
+                
 
                 <div className="menuWrap">
                   <button
