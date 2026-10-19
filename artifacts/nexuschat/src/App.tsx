@@ -872,7 +872,6 @@ async function handleSignOut() {
     />
   </label>
 )}
-              )}
 
               {loginError && (
                 <p className="auth-feedback auth-error" role="alert">
