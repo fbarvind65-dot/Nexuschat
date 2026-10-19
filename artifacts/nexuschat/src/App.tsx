@@ -346,15 +346,15 @@ async function shareUpdate() {
   }
 }
   
-const [showNewGroup, setShowNewGroup] = useState(false);
+  const [showNewGroup, setShowNewGroup] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupName, setNewGroupName] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
   const [loginError, setLoginError] = useState("");
   const [loginNotice, setLoginNotice] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
@@ -365,7 +365,6 @@ const [newGroupName, setNewGroupName] = useState("");
   const [draft, setDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
-
   const [modal, setModal] = useState<
     | null
     | { type: "forward"; message: Message }
