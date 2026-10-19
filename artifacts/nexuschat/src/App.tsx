@@ -47,6 +47,8 @@ import {
   Settings as SettingsIcon,
   Trash2,
   User as UserIcon,
+  UserRoundPlus,
+  Users,
   Phone,
   Video,
   X,
