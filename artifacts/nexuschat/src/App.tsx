@@ -1131,6 +1131,21 @@ async function handleSignOut() {
 </div>
 
           <div className="searchWrap"> 
+            <button
+  type="button"
+  aria-label="More options"
+  onClick={() => setShowMenu((previous) => !previous)}
+  style={{
+    background: "transparent",
+    border: "none",
+    color: "white",
+    fontSize: 26,
+    cursor: "pointer",
+    padding: "4px 10px",
+  }}
+>
+  ⋮
+</button>
             {showMenu && (
   <div
     style={{
