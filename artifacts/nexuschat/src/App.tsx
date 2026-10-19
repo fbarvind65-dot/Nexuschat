@@ -392,7 +392,8 @@ async function shareUpdate() {
       {
         uid: currentUser.uid,
         displayName,
-        updatedAt: serverTimestamp(),
+phoneNumber: currentUser.phoneNumber || phoneNumber || "",
+updatedAt: serverTimestamp(),
       },
       { merge: true }
     ).catch((error) => {
