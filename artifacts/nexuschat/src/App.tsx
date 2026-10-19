@@ -838,6 +838,24 @@ async function handleSignOut() {
                 </span>
               </label>
 
+              
+              {isRegistering && (
+                <label className="auth-field">
+                  Mobile number
+                  <input
+                    className="auth-input"
+                    type="tel"
+                    name="phoneNumber"
+                    placeholder="+91 9876543210"
+                    autoComplete="tel"
+                    value={phoneNumber}
+                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    disabled={loginLoading}
+                    required
+                  />
+                </label>
+              )}
+
               {isRegistering && (
                 <label className="auth-field">
                   Confirm password
@@ -850,30 +868,13 @@ async function handleSignOut() {
                     minLength={6}
                     required
                     value={confirmPassword}
-                    onChange={(event) =>
-                      setConfirmPassword(event.target.value)
-                    }
+                    onChange={(event) => setConfirmPassword(event.target.value)}
                     disabled={loginLoading}
                   />
                 </label>
-              {isRegistering && (
-  <label className="auth-field">
-    Mobile number
-    <input
-      className="auth-input"
-      type="tel"
-      name="phoneNumber"
-      placeholder="+91 9876543210"
-      autoComplete="tel"
-      value={phoneNumber}
-      onChange={(event) => setPhoneNumber(event.target.value)}
-      disabled={loginLoading}
-      required
-    />
-  </label>
-)}
-
-              {loginError && (
+              )}
+              
+             {loginError && (
                 <p className="auth-feedback auth-error" role="alert">
                   {loginError}
                 </p>
