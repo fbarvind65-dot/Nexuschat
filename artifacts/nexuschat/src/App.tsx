@@ -855,6 +855,22 @@ async function handleSignOut() {
                     disabled={loginLoading}
                   />
                 </label>
+              {isRegistering && (
+  <label className="auth-field">
+    Mobile number
+    <input
+      className="auth-input"
+      type="tel"
+      name="phoneNumber"
+      placeholder="+91 9876543210"
+      autoComplete="tel"
+      value={phoneNumber}
+      onChange={(event) => setPhoneNumber(event.target.value)}
+      disabled={loginLoading}
+      required
+    />
+  </label>
+)}
               )}
 
               {loginError && (
