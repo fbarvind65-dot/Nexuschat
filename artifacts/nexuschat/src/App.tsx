@@ -1988,29 +1988,8 @@ async function handleSignOut() {
     </div>
   </>
 )}
+
             
-
-                
-                <button
-                  className="primaryBtn"
-                  disabled={!newChatName.trim()}
-                  onClick={createChat}
-                >
-                  <Plus
-                    size={16}
-                    style={{ verticalAlign: "middle" }}
-                  />{" "}
-                  Create chat
-                </button>
-
-                <button
-                  className="secondaryBtn"
-                  onClick={() => setModal(null)}
-                >
-                  Cancel
-                </button>
-              </>
-            )}
           </div>
         </div>
       )}
