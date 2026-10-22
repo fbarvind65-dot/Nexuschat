@@ -670,27 +670,32 @@ useEffect(() => {
     setNotice("Message forwarded in this demo.");
   }
 
-  function createChat() {
-    const name = newChatName.trim();
+  
+function createChat() {
+  const name = newChatName.trim();
+  const phone = newChatPhone.trim();
 
-    if (!name) return;
+  if (!name) return;
 
-    const chat: Chat = {
-      id: makeId(),
-      name,
-      avatar: name.charAt(0).toUpperCase(),
-      color: "#8177ff",
-      online: false,
-      unread: 0,
-      messages: [],
-    };
+  const chat: Chat = {
+    id: makeId(),
+    name,
+    phone,
+    avatar: name.charAt(0).toUpperCase(),
+    color: "#8177ff",
+    online: false,
+    unread: 0,
+    messages: [],
+  };
 
-    setChats((previous) => [chat, ...previous]);
-    setSelectedId(chat.id);
-    setNewChatName("");
-    setModal(null);
-    setNotice("Demo chat created.");
-  }
+  setChats((previous) => [chat, ...previous]);
+  setSelectedId(chat.id);
+  setNewChatName("");
+  setNewChatPhone("");
+  setModal(null);
+  setNotice("Demo chat created.");
+}
+
   async function sendEmailLogin(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setLoginError("");
