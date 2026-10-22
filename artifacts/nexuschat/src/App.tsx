@@ -1439,7 +1439,11 @@ async function handleSignOut() {
                 <button
                   className="iconBtn"
                   title="New chat"
-                  onClick={() => setModal({ type: "newChat" })}
+                  onClick={() => {
+  setContactSearch("");
+  setShowAddContact(false);
+  setShowContactPicker(true);
+}}
                 >
                   <Plus size={19} />
                 </button> <button
