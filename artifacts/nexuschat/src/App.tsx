@@ -65,15 +65,18 @@ type Message = {
   forwarded?: boolean;
 };
 
+
 type Chat = {
   id: string;
   name: string;
+  phone?: string;
   avatar: string;
   color: string;
   online: boolean;
   unread: number;
   messages: Message[];
 };
+
 
 const initialChats: Chat[] = [
   {
