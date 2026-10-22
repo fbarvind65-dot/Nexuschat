@@ -453,6 +453,7 @@ useEffect(() => {
       setSavedContacts(contacts);
     } catch (error) {
       console.error("Could not load contacts:", error);
+      alert(String(error));
     }
   }
 
