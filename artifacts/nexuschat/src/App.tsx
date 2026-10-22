@@ -379,6 +379,9 @@ async function shareUpdate() {
 
   const [newChatName, setNewChatName] = useState("");
 const [newChatPhone, setNewChatPhone] = useState("");
+const [showContactPicker, setShowContactPicker] = useState(false);
+const [contactSearch, setContactSearch] = useState("");
+const [savedContacts, setSavedContacts] = useState<Chat[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
