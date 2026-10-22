@@ -415,6 +415,55 @@ updatedAt: serverTimestamp(),
   }, []);
   
 useEffect(() => {
+  if (!user) {
+    setSavedContacts([]);
+    return;
+  }
+
+  let cancelled = false;
+
+  async function loadSavedContacts() {
+    try {
+      const snapshot = await getDocs(collection(db, "users"));
+
+      if (cancelled) return;
+
+      const contacts: Chat[] = snapshot.docs
+        .filter((item) => item.id !== user.uid)
+        .map((item) => {
+          const data = item.data();
+          const name =
+            data.displayName ||
+            data.name ||
+            data.email?.split("@")[0] ||
+            "NexusChat User";
+
+          return {
+            id: item.id,
+            name,
+            phone: data.phoneNumber || "",
+            avatar: name.charAt(0).toUpperCase(),
+            color: "#8177ff",
+            online: false,
+            unread: 0,
+            messages: [],
+          };
+        });
+
+      setSavedContacts(contacts);
+    } catch (error) {
+      console.error("Could not load contacts:", error);
+    }
+  }
+
+  void loadSavedContacts();
+
+  return () => {
+    cancelled = true;
+  };
+}, [user]);
+
+useEffect(() => {
   if (!user) return;
   const ownerId = user.uid;
 
