@@ -476,7 +476,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .newChatFloat {
   position: fixed;
   right: 24px;
-  bottom: 24px;
+  bottom: 105px;
   width: 56px;
   height: 56px;
   border: none;
