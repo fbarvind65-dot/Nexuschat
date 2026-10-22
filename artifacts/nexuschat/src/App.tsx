@@ -1878,6 +1878,34 @@ async function handleSignOut() {
   }}
 />
 
+<input
+  className="search"
+  placeholder="Search saved contacts..."
+  value={contactSearch}
+  onChange={(event) => setContactSearch(event.target.value)}
+/>
+
+<div>
+  {savedContacts
+    .filter(
+      (contact) =>
+        contact.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+        (contact.phone || "").includes(contactSearch)
+    )
+    .map((contact) => (
+      <button
+        key={contact.id}
+        className="secondaryBtn"
+        onClick={() => {
+          setNewChatName(contact.name);
+          setNewChatPhone(contact.phone || "");
+        }}
+      >
+        {contact.name} — {contact.phone || "No phone number"}
+      </button>
+    ))}
+</div>
+                
                 <button
                   className="primaryBtn"
                   disabled={!newChatName.trim()}
