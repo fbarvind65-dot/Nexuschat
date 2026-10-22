@@ -1296,7 +1296,13 @@ async function handleSignOut() {
 ) : (
   <div className="sectionLabel">Messages</div>
 )}
-
+<button
+  className="newChatFloat"
+  title="New chat"
+  onClick={() => setModal({ type: "newChat" })}
+>
+  <Plus size={24} />
+</button>
           <div className="chatList">
             {visibleChats.map((chat) => {
               const lastMessage =
