@@ -375,6 +375,7 @@ async function shareUpdate() {
   >(null);
 
   const [newChatName, setNewChatName] = useState("");
+const [newChatPhone, setNewChatPhone] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -1835,24 +1836,28 @@ async function handleSignOut() {
 
             {modal.type === "newChat" && (
               <>
-                <p>
-                  Enter a name to create a new local demo conversation.
-                </p>
+                <p>Enter contact name and phone number.</p>
 
-                <input
-                  className="search"
-                  placeholder="Enter chat name"
-                  value={newChatName}
-                  onChange={(event) =>
-                    setNewChatName(event.target.value)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      createChat();
-                    }
-                  }}
-                  autoFocus
-                />
+<input
+  className="search"
+  placeholder="Contact name"
+  value={newChatName}
+  onChange={(event) => setNewChatName(event.target.value)}
+  autoFocus
+/>
+
+<input
+  className="search"
+  placeholder="Phone number (e.g. +91 9876543210)"
+  type="tel"
+  value={newChatPhone}
+  onChange={(event) => setNewChatPhone(event.target.value)}
+  onKeyDown={(event) => {
+    if (event.key === "Enter") {
+      createChat();
+    }
+  }}
+/>
 
                 <button
                   className="primaryBtn"
