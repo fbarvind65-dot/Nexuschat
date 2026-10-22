@@ -1902,58 +1902,94 @@ async function handleSignOut() {
               </>
             )}
 
-            {modal.type === "newChat" && (
-              <>
-                <p>Enter contact name and phone number.</p>
+            
+{modal.type === "newChat" && (
+  <>
+    <p>Select contact</p>
 
-<input
-  className="search"
-  placeholder="Contact name"
-  value={newChatName}
-  onChange={(event) => setNewChatName(event.target.value)}
-  autoFocus
-/>
+    <input
+      className="search"
+      placeholder="Search by name or phone number..."
+      value={contactSearch}
+      onChange={(event) => setContactSearch(event.target.value)}
+      autoFocus
+    />
 
-<input
-  className="search"
-  placeholder="Phone number (e.g. +91 9876543210)"
-  type="tel"
-  value={newChatPhone}
-  onChange={(event) => setNewChatPhone(event.target.value)}
-  onKeyDown={(event) => {
-    if (event.key === "Enter") {
-      createChat();
-    }
-  }}
-/>
+    <div style={{ maxHeight: "55vh", overflowY: "auto" }}>
+      {savedContacts
+        .filter(
+          (contact) =>
+            contact.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+            (contact.phone || "").includes(contactSearch)
+        )
+        .map((contact) => (
+          <button
+            key={contact.id}
+            className="secondaryBtn"
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: 12,
+              marginBottom: 8,
+              textAlign: "left",
+            }}
+            onClick={() => {
+              setNewChatName(contact.name);
+              setNewChatPhone(contact.phone || "");
+              setModal(null);
 
-<input
-  className="search"
-  placeholder="Search saved contacts..."
-  value={contactSearch}
-  onChange={(event) => setContactSearch(event.target.value)}
-/>
+              const existingChat = chats.find(
+                (chat) => chat.id === contact.id ||
+                  (contact.phone && chat.phone === contact.phone)
+              );
 
-<div>
-  {savedContacts
-    .filter(
-      (contact) =>
-        contact.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
-        (contact.phone || "").includes(contactSearch)
-    )
-    .map((contact) => (
-      <button
-        key={contact.id}
-        className="secondaryBtn"
-        onClick={() => {
-          setNewChatName(contact.name);
-          setNewChatPhone(contact.phone || "");
-        }}
-      >
-        {contact.name} — {contact.phone || "No phone number"}
-      </button>
-    ))}
-</div>
+              if (existingChat) {
+                setSelectedId(existingChat.id);
+              } else {
+                const newChat: Chat = {
+                  ...contact,
+                  unread: 0,
+                  messages: [],
+                };
+                setChats((previous) => [newChat, ...previous]);
+                setSelectedId(newChat.id);
+              }
+
+              setContactSearch("");
+            }}
+          >
+            <span
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: "50%",
+                background: contact.color || "#8177ff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {contact.avatar}
+            </span>
+
+            <span>
+              <strong style={{ display: "block" }}>{contact.name}</strong>
+              <small>{contact.phone || "Phone number unavailable"}</small>
+            </span>
+          </button>
+        ))}
+
+      {savedContacts.length === 0 && (
+        <p>No registered contacts found.</p>
+      )}
+    </div>
+  </>
+)}
+            
+
                 
                 <button
                   className="primaryBtn"
