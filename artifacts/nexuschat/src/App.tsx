@@ -580,6 +580,7 @@ function getConversationId(uid1: string, uid2: string) {
   return [uid1, uid2].sort().join("_");
 }
   
+
 async function sendMessage() {
   const text = draft.trim();
   const currentUser = auth.currentUser;
@@ -592,6 +593,7 @@ async function sendMessage() {
   }
 
   const isGroup = selectedChat.id.startsWith("group-");
+
   const message: Message = {
     id: makeId(),
     text,
@@ -629,9 +631,54 @@ async function sendMessage() {
       return;
     }
 
-    setNotice(
-      "Personal chat sync is not connected yet. Next we will add the shared conversation."
+    if (selectedChat.id === currentUser.uid) {
+      throw new Error("You cannot message yourself.");
+    }
+
+    const conversationId = getConversationId(
+      currentUser.uid,
+      selectedChat.id
     );
+
+    const conversationRef = doc(
+      db,
+      "conversations",
+      conversationId
+    );
+
+    const conversationSnapshot = await getDocs(
+      query(
+        collection(db, "conversations"),
+        where("participantIds", "array-contains", currentUser.uid)
+      )
+    );
+
+    const existingConversation = conversationSnapshot.docs.find(
+      (item) => item.id === conversationId
+    );
+
+    if (!existingConversation) {
+      await setDoc(conversationRef, {
+        participantIds: [currentUser.uid, selectedChat.id].sort(),
+        createdAt: serverTimestamp(),
+      });
+    }
+
+    await addDoc(collection(conversationRef, "messages"), {
+      id: message.id,
+      text: message.text,
+      senderId: currentUser.uid,
+      time: message.time,
+      createdAt: serverTimestamp(),
+    });
+
+    updateChat(selectedChat.id, (chat) => ({
+      ...chat,
+      messages: [...chat.messages, message],
+    }));
+
+    setDraft("");
+    setNotice("Personal message saved to Firebase.");
   } catch (error: unknown) {
     console.error("Message save failed:", error);
     setNotice(
@@ -641,6 +688,7 @@ async function sendMessage() {
     );
   }
 }
+
 
 
   async function copyMessage(message: Message) {
