@@ -578,46 +578,44 @@ const visibleChats = useMemo(() => {
   }
 
   
-  async function sendMessage() {
-    const text = draft.trim();
+async function sendMessage() {
+  const text = draft.trim();
+  const currentUser = auth.currentUser;
 
-    if (!text || !selectedChat) return;
+  if (!text || !selectedChat) return;
 
-    const message: Message = {
-      id: makeId(),
-      text,
-      sender: "me",
-      time: currentTime(),
-    };
+  if (!currentUser) {
+    setNotice("Please log in first.");
+    return;
+  }
 
-    const isGroup = selectedChat.id.startsWith("group-");
-    const ownerId = auth.currentUser?.uid;
+  const isGroup = selectedChat.id.startsWith("group-");
+  const message: Message = {
+    id: makeId(),
+    text,
+    sender: "me",
+    time: currentTime(),
+  };
 
-    try {
-      if (isGroup) {
-        if (!ownerId) {
-          setNotice("Please log in first.");
-          return;
-        }
+  try {
+    if (isGroup) {
+      const groupSnapshot = await getDocs(
+        query(
+          collection(db, "groups"),
+          where("id", "==", selectedChat.id),
+          where("ownerId", "==", currentUser.uid)
+        )
+      );
 
-        const groupSnapshot = await getDocs(
-          query(
-            collection(db, "groups"),
-            where("id", "==", selectedChat.id),
-            where("ownerId", "==", ownerId)
-          )
-        );
+      const groupDocument = groupSnapshot.docs[0];
 
-        const groupDocument = groupSnapshot.docs[0];
-
-        if (!groupDocument) {
-          throw new Error("Saved group not found.");
-        }
-
-        await updateDoc(groupDocument.ref, {
-          messages: arrayUnion(message),
-        });
+      if (!groupDocument) {
+        throw new Error("Saved group not found.");
       }
+
+      await updateDoc(groupDocument.ref, {
+        messages: arrayUnion(message),
+      });
 
       updateChat(selectedChat.id, (chat) => ({
         ...chat,
@@ -625,21 +623,23 @@ const visibleChats = useMemo(() => {
       }));
 
       setDraft("");
-      setNotice(
-        isGroup
-          ? "Message sent and saved."
-          : "Message sent in this demo chat."
-      );
-    } catch (error: unknown) {
-      console.error("Message save failed:", error);
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "Could not save the message."
-      );
+      setNotice("Group message sent and saved.");
+      return;
     }
+
+    setNotice(
+      "Personal chat sync is not connected yet. Next we will add the shared conversation."
+    );
+  } catch (error: unknown) {
+    console.error("Message save failed:", error);
+    setNotice(
+      error instanceof Error
+        ? error.message
+        : "Could not save the message."
+    );
   }
-  
+}
+
 
   async function copyMessage(message: Message) {
     try {
