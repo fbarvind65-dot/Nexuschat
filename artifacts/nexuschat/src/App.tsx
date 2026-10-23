@@ -424,7 +424,7 @@ useEffect(() => {
 
   async function loadSavedContacts() {
     try {
-      const snapshot = await getDocs(collection(db, "users"));
+      const snapshot = await getDocs(collection(db, "Users"));
 
       if (cancelled) return;
 
@@ -435,7 +435,7 @@ useEffect(() => {
           const name =
             data.displayName ||
             data.name ||
-            data.email?.split("@")[0] ||
+            data.Email?.split("@")[0] ||
             "NexusChat User";
 
           return {
