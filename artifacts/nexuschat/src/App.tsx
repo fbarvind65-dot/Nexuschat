@@ -431,7 +431,7 @@ useEffect(() => {
 
   return () => unsubscribe();
 }, [user, selectedId]);
-    
+    useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
   setUser(currentUser);
   setChats(initialChats);
