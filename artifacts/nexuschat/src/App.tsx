@@ -434,9 +434,12 @@ useEffect(() => {
     useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
   setUser(currentUser);
-  setChats(initialChats);
-  setSelectedId(null);
+    setSelectedId(null);
   setAuthReady(true);
+
+  if (!currentUser) {
+    setChats(initialChats);
+  }
 
   if (currentUser) {
     const displayName =
