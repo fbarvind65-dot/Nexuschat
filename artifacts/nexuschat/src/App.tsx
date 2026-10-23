@@ -384,7 +384,54 @@ const [showContactPicker, setShowContactPicker] = useState(false);
 const [contactSearch, setContactSearch] = useState("");
 const [savedContacts, setSavedContacts] = useState<Chat[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  
+useEffect(() => {
+  const currentUser = auth.currentUser;
+
+  if (!currentUser || !selectedChat) return;
+  if (selectedChat.id.startsWith("group-")) return;
+  if (selectedChat.id === currentUser.uid) return;
+
+  const conversationId = getConversationId(
+    currentUser.uid,
+    selectedChat.id
+  );
+
+  const messagesRef = collection(
+    db,
+    "conversations",
+    conversationId,
+    "messages"
+  );
+
+  const unsubscribe = onSnapshot(
+    query(messagesRef, orderBy("createdAt", "asc")),
+    (snapshot) => {
+      const messages: Message[] = snapshot.docs.map((item) => {
+        const data = item.data();
+
+        return {
+          id: data.id || item.id,
+          text: data.text || "",
+          sender: data.senderId === currentUser.uid ? "me" : "other",
+          time: data.time || "",
+        };
+      });
+
+      updateChat(selectedChat.id, (chat) => ({
+        ...chat,
+        messages,
+      }));
+    },
+    (error) => {
+      console.error("Live messages failed:", error);
+      setNotice("Could not load live messages. Check Firestore rules.");
+    }
+  );
+
+  return () => unsubscribe();
+}, [user, selectedId]);
+    
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
   setUser(currentUser);
   setChats(initialChats);
