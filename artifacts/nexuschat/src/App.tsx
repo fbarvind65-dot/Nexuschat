@@ -576,7 +576,9 @@ const visibleChats = useMemo(() => {
 
     setMenuOpen(false);
   }
-
+function getConversationId(uid1: string, uid2: string) {
+  return [uid1, uid2].sort().join("_");
+}
   
 async function sendMessage() {
   const text = draft.trim();
