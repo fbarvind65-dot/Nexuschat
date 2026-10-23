@@ -772,11 +772,51 @@ function createChat() {
 
     setLoginLoading(true);
     try {
-      if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
+      
+if (isRegistering) {
+  if (!phoneNumber.trim()) {
+    setLoginError("Enter your phone number.");
+    return;
+  }
+
+  await createUserWithEmailAndPassword(auth, email, password);
+
+  await setDoc(
+    doc(db, "Users", auth.currentUser!.uid),
+    {
+      Name: email.split("@")[0],
+      Email: email,
+      PhoneNumber: phoneNumber.trim(),
+    },
+    { merge: true }
+  );
+} else {
+  await signInWithEmailAndPassword(auth, email, password);
+}
+
+
+if (isRegistering) {
+  if (!phoneNumber.trim()) {
+    setLoginError("Enter your phone number.");
+    return;
+  }
+
+  await createUserWithEmailAndPassword(auth, email, password);
+
+  await setDoc(
+    doc(db, "Users", auth.currentUser!.uid),
+    {
+      Name: email.split("@")[0],
+      Email: email,
+      PhoneNumber: phoneNumber.trim(),
+    },
+    { merge: true }
+  );
+} else {
+  await signInWithEmailAndPassword(auth, email, password);
+}
+      
+      
 
       const successMessage = isRegistering
         ? "Your NexusChat account is ready."
