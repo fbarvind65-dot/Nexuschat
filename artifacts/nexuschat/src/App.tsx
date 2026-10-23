@@ -20,17 +20,18 @@ import {
 } from "./artifacts/nexuschat/src/callService";
 
 import {
-collection,
-addDoc,
-getDocs,
-query,
-where,
-serverTimestamp,
-orderBy,
-doc,
-setDoc,
-updateDoc,
-arrayUnion,
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+  orderBy,
+  doc,
+  setDoc,
+  updateDoc,
+  arrayUnion,
+  onSnapshot,
 } from "firebase/firestore";
 
 import {
