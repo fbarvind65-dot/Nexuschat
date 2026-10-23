@@ -32,6 +32,7 @@ import {
   updateDoc,
   arrayUnion,
   onSnapshot,
+  deleteDoc,
 } from "firebase/firestore";
 
 import {
@@ -714,13 +715,16 @@ async function sendMessage() {
       });
     }
 
-    await addDoc(collection(conversationRef, "messages"), {
-      id: message.id,
-      text: message.text,
-      senderId: currentUser.uid,
-      time: message.time,
-      createdAt: serverTimestamp(),
-    });
+    await setDoc(
+  doc(conversationRef, "messages", message.id),
+  {
+    id: message.id,
+    text: message.text,
+    senderId: currentUser.uid,
+    time: message.time,
+    createdAt: serverTimestamp(),
+  }
+);
 
     updateChat(selectedChat.id, (chat) => ({
       ...chat,
@@ -786,7 +790,29 @@ async function sendMessage() {
         messages: updatedMessages,
       });
     }
+    else {
+      const currentUser = auth.currentUser;
 
+      if (!currentUser) {
+        setNotice("Please log in first.");
+        return;
+      }
+
+      const conversationId = getConversationId(
+        currentUser.uid,
+        chatId
+      );
+
+      await deleteDoc(
+        doc(
+          db,
+          "conversations",
+          conversationId,
+          "messages",
+          message.id
+        )
+      );
+    }
     updateChat(chatId, (chat) => ({
       ...chat,
       messages: chat.messages.filter(
