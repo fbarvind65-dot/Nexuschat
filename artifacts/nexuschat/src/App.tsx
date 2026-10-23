@@ -443,7 +443,11 @@ useEffect(() => {
           return {
             id: item.id,
             name,
-            phone: data.phoneNumber || data.phone || "",
+            phone:
+  data.PhoneNumber ||
+  data.phoneNumber ||
+  data.phone ||
+  "",
             avatar: name.charAt(0).toUpperCase(),
             color: "#8177ff",
             online: false,
