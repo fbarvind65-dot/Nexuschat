@@ -525,18 +525,22 @@ useEffect(() => {
   const selectedChat =
     chats.find((chat) => chat.id === selectedId) ?? null;
 
-  const visibleChats = useMemo(() => {
-    return chats.filter((chat) => {
-      const matchesSearch = chat.name
-        .toLowerCase()
-        .includes(search.toLowerCase());
+  
+const visibleChats = useMemo(() => {
+  return chats.filter((chat) => {
+    const searchText = search.trim().toLowerCase();
 
-      const matchesFilter =
-        filter === "all" || chat.unread > 0;
+    const matchesSearch =
+      chat.name.toLowerCase().includes(searchText) ||
+      (chat.phone || "").toLowerCase().includes(searchText);
 
-      return matchesSearch && matchesFilter;
-    });
-  }, [chats, search, filter]);
+    const matchesFilter =
+      filter === "all" || chat.unread > 0;
+
+    return matchesSearch && matchesFilter;
+  });
+}, [chats, search, filter]);
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
