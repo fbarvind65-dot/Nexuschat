@@ -433,10 +433,12 @@ useEffect(() => {
         .map((item) => {
           const data = item.data();
           const name =
-            data.displayName ||
-            data.name ||
-            data.Email?.split("@")[0] ||
-            "NexusChat User";
+  data.displayName ||
+  data.name ||
+  data.Name ||
+  data.Email?.split("@")[0] ||
+  "NexusChat User";
+            
 
           return {
             id: item.id,
