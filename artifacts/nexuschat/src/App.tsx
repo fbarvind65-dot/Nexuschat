@@ -2096,7 +2096,33 @@ async function handleSignOut() {
             
 {modal.type === "newChat" && (
   <>
-    <p>Select contact</p>
+    <p>Select a phone contact to find friends on NexusChat</p>
+
+<button
+  className="primaryBtn"
+  onClick={() => {
+    const contactsApi = (navigator as any).contacts;
+
+    if (!contactsApi?.select) {
+      setNotice(
+        "Phone contact picker is not supported in this browser. Try a supported Android browser."
+      );
+      return;
+    }
+
+    void contactsApi
+      .select(["name", "tel"], { multiple: true })
+      .then((contacts: Array<{ name?: string[]; tel?: string[] }>) => {
+        setNotice(`${contacts.length} phone contacts selected.`);
+      })
+      .catch(() => {
+        setNotice("Contact selection cancelled or unavailable.");
+      });
+  }}
+  style={{ width: "100%", marginBottom: 12 }}
+>
+  <UserRoundPlus size={16} /> Select phone contacts
+</button>
 
     <input
       className="search"
