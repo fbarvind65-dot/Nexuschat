@@ -791,28 +791,40 @@ async function sendMessage() {
       });
     }
     else {
-      const currentUser = auth.currentUser;
+  const currentUser = auth.currentUser;
 
-      if (!currentUser) {
-        setNotice("Please log in first.");
-        return;
-      }
+  if (!currentUser) {
+    setNotice("Please log in first.");
+    return;
+  }
 
-      const conversationId = getConversationId(
-        currentUser.uid,
-        chatId
-      );
+  const conversationId = getConversationId(
+    currentUser.uid,
+    chatId
+  );
 
-      await deleteDoc(
-        doc(
-          db,
-          "conversations",
-          conversationId,
-          "messages",
-          message.id
-        )
-      );
-    }
+  const messagesRef = collection(
+    db,
+    "conversations",
+    conversationId,
+    "messages"
+  );
+
+  const messageSnapshot = await getDocs(
+    query(messagesRef, where("id", "==", message.id))
+  );
+
+  if (messageSnapshot.empty) {
+    throw new Error(
+      "Message not found in Firebase. It may be an older demo message."
+    );
+  }
+
+  await Promise.all(
+    messageSnapshot.docs.map((item) => deleteDoc(item.ref))
+  );
+    }      
+    
     updateChat(chatId, (chat) => ({
       ...chat,
       messages: chat.messages.filter(
