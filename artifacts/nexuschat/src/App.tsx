@@ -697,33 +697,13 @@ async function sendMessage() {
       conversationId
     );
 
-    const conversationSnapshot = await getDocs(
-      query(
-        collection(db, "conversations"),
-        where("participantIds", "array-contains", currentUser.uid)
-      )
-    );
-
-    const existingConversation = conversationSnapshot.docs.find(
-      (item) => item.id === conversationId
-    );
-
-    if (!existingConversation) {
-      await setDoc(conversationRef, {
-        participantIds: [currentUser.uid, selectedChat.id].sort(),
-        createdAt: serverTimestamp(),
-      });
-    }
-
     await setDoc(
-  doc(conversationRef, "messages", message.id),
+  conversationRef,
   {
-    id: message.id,
-    text: message.text,
-    senderId: currentUser.uid,
-    time: message.time,
+    participantIds: [currentUser.uid, selectedChat.id].sort(),
     createdAt: serverTimestamp(),
-  }
+  },
+  { merge: true }
 );
 
     updateChat(selectedChat.id, (chat) => ({
