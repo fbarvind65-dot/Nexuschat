@@ -822,11 +822,11 @@ async function sendMessage() {
 
     setModal(null);
 
-    setNotice(
-      isGroup
-        ? "Group message deleted."
-        : "Message removed from this demo chat."
-    );
+ setNotice(
+  isGroup
+    ? "Group message deleted."
+    : "Personal message deleted from Firebase."
+);
   } catch (error: unknown) {
     console.error("Message delete failed:", error);
 
