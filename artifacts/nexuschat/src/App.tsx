@@ -709,12 +709,14 @@ async function sendMessage() {
     );
 
     await setDoc(
-  conversationRef,
+  doc(conversationRef, "messages", message.id),
   {
-    participantIds: [currentUser.uid, selectedChat.id].sort(),
+    id: message.id,
+    text: message.text,
+    senderId: currentUser.uid,
+    time: message.time,
     createdAt: serverTimestamp(),
-  },
-  { merge: true }
+  }
 );
 
     updateChat(selectedChat.id, (chat) => ({
