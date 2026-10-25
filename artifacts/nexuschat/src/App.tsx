@@ -397,6 +397,11 @@ useEffect(() => {
     currentUser.uid,
     selectedChat.id
   );
+  window.alert(
+  `MY UID: ${currentUser.uid}\n` +
+  `RECIPIENT UID: ${selectedChat.id}\n` +
+  `CONVERSATION ID: ${conversationId}`
+);
 console.log("MY UID:", currentUser.uid);
 console.log("RECIPIENT UID:", selectedChat.id);
 console.log("CONVERSATION ID:", conversationId);
