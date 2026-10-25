@@ -397,7 +397,9 @@ useEffect(() => {
     currentUser.uid,
     selectedChat.id
   );
-
+console.log("MY UID:", currentUser.uid);
+console.log("RECIPIENT UID:", selectedChat.id);
+console.log("CONVERSATION ID:", conversationId);
   const messagesRef = collection(
     db,
     "conversations",
