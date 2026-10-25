@@ -483,29 +483,33 @@ useEffect(() => {
       const contacts: Chat[] = snapshot.docs
         .filter((item) => item.id !== user.uid)
         .map((item) => {
-          const data = item.data();
-          const name =
+          
+const data = item.data();
+
+const name =
   data.displayName ||
   data.name ||
   data.Name ||
   data.Email?.split("@")[0] ||
   "NexusChat User";
-            
 
-          return {
-            id: item.id,
-            name,
-            phone:
+const phone =
   data.PhoneNumber ||
   data.phoneNumber ||
   data.phone ||
-  "",
-            avatar: name.charAt(0).toUpperCase(),
-            color: "#8177ff",
-            online: false,
-            unread: 0,
-            messages: [],
-          };
+  data.phoneNumber ||
+  "";
+
+return {
+  id: item.id,
+  name,
+  phone,
+  avatar: name.charAt(0).toUpperCase(),
+  color: "#8177ff",
+  online: false,
+  unread: 0,
+  messages: [],
+};       
         });
 
       setSavedContacts(contacts);
