@@ -408,7 +408,7 @@ console.log("CONVERSATION ID:", conversationId);
   );
 
   const unsubscribe = onSnapshot(
-    query(messagesRef, orderBy("createdAt", "asc")),
+    messagesRef,
     (snapshot) => {
       const messages: Message[] = snapshot.docs.map((item) => {
         const data = item.data();
