@@ -528,7 +528,59 @@ return {
     cancelled = true;
   };
 }, [user]);
+useEffect(() => {
+  if (!user) return;
 
+  const q = query(
+    collection(db, "conversations"),
+    where("participantIds", "array-contains", user.uid)
+  );
+
+  const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const loadedChats: Chat[] = [];
+
+    for (const item of snapshot.docs) {
+      const data = item.data();
+      const otherUid = data.participantIds.find(
+        (id: string) => id !== user.uid
+      );
+
+      if (!otherUid) continue;
+
+      const userDoc = await getDoc(doc(db, "Users", otherUid));
+      const userData = userDoc.exists() ? userDoc.data() : {};
+
+      const msgSnap = await getDocs(
+        collection(db, "conversations", item.id, "messages")
+      );
+
+      const messages: Message[] = msgSnap.docs.map((m) => {
+        const d = m.data();
+        return {
+          id: d.id || m.id,
+          text: d.text,
+          sender: d.senderId === user.uid ? "me" : "other",
+          time: d.time,
+        };
+      });
+
+      loadedChats.push({
+        id: otherUid,
+        name: userData.Name || userData.displayName || "NexusChat User",
+        phone: userData.PhoneNumber || "",
+        avatar: (userData.Name || "N").charAt(0),
+        color: "#8177ff",
+        online: false,
+        unread: 0,
+        messages,
+      });
+    }
+
+    setChats(loadedChats);
+  });
+
+  return () => unsubscribe();
+}, [user]);
 useEffect(() => {
   if (!user) return;
   const ownerId = user.uid;
