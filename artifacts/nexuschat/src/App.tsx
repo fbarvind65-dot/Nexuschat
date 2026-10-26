@@ -703,12 +703,21 @@ async function sendMessage() {
     );
 
     const conversationRef = doc(
-      db,
-      "conversations",
-      conversationId
-    );
+  db,
+  "conversations",
+  conversationId
+);
 
-    await setDoc(
+await setDoc(
+  conversationRef,
+  {
+    participantIds: [currentUser.uid, selectedChat.id].sort(),
+    createdAt: serverTimestamp(),
+  },
+  { merge: true }
+);
+
+await setDoc(
   doc(conversationRef, "messages", message.id),
   {
     id: message.id,
