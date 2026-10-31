@@ -517,12 +517,7 @@ return {
     }
   }
 
-  void loadSavedContacts();
-
-  return () => {
-    cancelled = true;
-  };
-}, [user]);
+  
 useEffect(() => {
   if (!user) return;
 
