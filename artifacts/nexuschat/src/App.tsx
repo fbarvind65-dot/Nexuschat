@@ -470,12 +470,6 @@ updatedAt: serverTimestamp(),
     return unsubscribe;
   }, []);
   
-useEffect(() => {
-  if (!user) {
-    setSavedContacts([]);
-    return;
-  }
-
   let cancelled = false;
 
   async function loadSavedContacts() {
