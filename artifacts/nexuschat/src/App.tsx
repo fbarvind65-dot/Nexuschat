@@ -497,26 +497,6 @@ const phone =
   data.phone ||
   data.phoneNumber ||
   "";
-
-return {
-  id: item.id,
-  name,
-  phone,
-  avatar: name.charAt(0).toUpperCase(),
-  color: "#8177ff",
-  online: false,
-  unread: 0,
-  messages: [],
-};       
-        });
-
-      setSavedContacts(contacts);
-    } catch (error) {
-      console.error("Could not load contacts:", error);
-      alert(String(error));
-    }
-  }
-
   
 useEffect(() => {
   if (!user) return;
