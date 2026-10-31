@@ -775,7 +775,15 @@ await setDoc(
     createdAt: serverTimestamp(),
   }
 );
-
+await setDoc(
+  conversationRef,
+  {
+    participantIds: [currentUser.uid, selectedChat.id].sort(),
+    lastMessage: message.text,
+    lastMessageAt: serverTimestamp(),
+  },
+  { merge: true }
+);
     updateChat(selectedChat.id, (chat) => ({
       ...chat,
       messages: [...chat.messages, message],
