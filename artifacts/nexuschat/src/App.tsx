@@ -576,7 +576,13 @@ useEffect(() => {
       });
     }
 
-    setChats(loadedChats);
+    setChats((previousChats) => {
+  const groups = previousChats.filter(
+    (chat) => chat.id.startsWith("group-")
+  );
+
+  return [...groups, ...loadedChats];
+});
   });
 
   return () => unsubscribe();
