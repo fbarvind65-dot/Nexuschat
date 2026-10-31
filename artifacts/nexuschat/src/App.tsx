@@ -72,6 +72,7 @@ type Chat = {
   id: string;
   name: string;
   phone?: string;
+  phone?: string;
   avatar: string;
   color: string;
   online: boolean;
