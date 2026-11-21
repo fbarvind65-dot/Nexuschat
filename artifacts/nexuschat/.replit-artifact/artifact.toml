@@ -1,7 +1,7 @@
 kind = "web"
 previewPath = "/"
 title = "NexusChat"
-description = "A mobile-friendly chat web app with sign-up and login screens, a demo chat list, and interactive conversations. Uses local demo data for now, with Firebase Authentication and Cloud Firestore planned for a later phase."
+description = "A mobile-friendly messaging app with email and password sign-in, registered contacts, and Firebase-backed conversations."
 version = "1.0.0"
 id = "artifacts/nexuschat"
 router = "path"
@@ -17,7 +17,7 @@ run = "pnpm --filter @workspace/nexuschat run dev"
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/nexuschat", "run", "build" ]
 serve = "static"
-publicDir = "artifacts/nexuschat/dist/public"
+publicDir = "artifacts/nexuschat/dist"
 
 [[services.production.rewrites]]
 from = "/*"
