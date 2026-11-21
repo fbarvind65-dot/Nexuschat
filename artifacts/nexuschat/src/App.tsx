@@ -954,26 +954,7 @@ function createChat() {
     setLoginLoading(true);
     try {
       
-if (isRegistering) {
-  if (!phoneNumber.trim()) {
-    setLoginError("Enter your phone number.");
-    return;
-  }
 
-  await createUserWithEmailAndPassword(auth, email, password);
-
-  await setDoc(
-    doc(db, "Users", auth.currentUser!.uid),
-    {
-      Name: email.split("@")[0],
-      Email: email,
-      PhoneNumber: phoneNumber.trim(),
-    },
-    { merge: true }
-  );
-} else {
-  await signInWithEmailAndPassword(auth, email, password);
-}
 
 
 if (isRegistering) {
