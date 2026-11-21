@@ -1224,6 +1224,64 @@ async function handleSignOut() {
     return (
       <>
         <style>{css}</style>
+<div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", width: "min(560px,calc(100% - 24px))", zIndex: 1200, display: "grid", gap: 8 }}>
+{incomingCalls.map((call) => (
+  <div key={call.id} className="notice" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: 0 }}>
+    <span>Incoming {call.type} call</span>
+    <div style={{ display: "flex", gap: 8 }}>
+      <button className="primaryBtn" onClick={async () => {
+        if (!user) return;
+        if (activeCall) { setNotice("End the current call before accepting another."); return; }
+        try {
+          setCallStatus("Connecting…");
+          setActiveCallType(call.type);
+          setRemoteStream(null);
+          const session = await acceptCall(db, call.id, user.uid, {
+            onRemoteStream: (stream) => setRemoteStream(stream),
+            onStatus: (status) => {
+              if (status === "connected") setCallStatus("Call connected");
+              else if (status === "failed") setCallStatus("Connection failed. Check your network.");
+              else if (status === "disconnected") setCallStatus("Call disconnected");
+              else if (status === "ended" || status === "declined") {
+                setActiveCall(null);
+                setRemoteStream(null);
+                setCallStatus(status === "declined" ? "Call declined" : "Call ended");
+              }
+            },
+          });
+          setActiveCall(session);
+          setCallStatus("Call connected");
+          setNotice("Call accepted.");
+        } catch (error) {
+          console.error("Accept call failed:", error);
+          setCallStatus("Could not accept call.");
+          setNotice(error instanceof Error ? error.message : "Could not accept call.");
+        }
+      }}>Accept</button>
+      <button className="secondaryBtn" onClick={async () => {
+        if (!user) return;
+        try { await rejectCall(db, call.id, user.uid); setNotice("Call declined."); }
+        catch (error) { setNotice(error instanceof Error ? error.message : "Could not reject call."); }
+      }}>Reject</button>
+    </div>
+  </div>
+))}
+{(activeCall || callStatus) && (
+  <div className="notice" style={{ display: "grid", gap: 10, margin: 0 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      <strong>{activeCallType === "video" ? "Video call" : "Audio call"}</strong><span>{callStatus}</span>
+    </div>
+    {activeCallType === "video" && activeCall && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
+        <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", minHeight: 110, maxHeight: 220, objectFit: "cover", background: "#080d18", borderRadius: 10 }} />
+        <video ref={remoteVideoRef} autoPlay playsInline style={{ width: "100%", minHeight: 110, maxHeight: 220, objectFit: "cover", background: "#080d18", borderRadius: 10 }} />
+      </div>
+    )}
+    <audio ref={remoteAudioRef} autoPlay />
+    {activeCall && <button type="button" className="secondaryBtn" onClick={() => void endActiveCall()} style={{ background: "#a52d42", borderColor: "#a52d42", color: "white" }}>End call</button>}
+  </div>
+)}
+</div>
         <main className="auth-shell">
           <div className="auth-loading" role="status">Checking your account…</div>
         </main>
@@ -1971,115 +2029,7 @@ async function handleSignOut() {
 
               {notice && <div className="notice">{notice}</div>}
               
-{incomingCalls.map((call) => (
-  <div
-    key={call.id}
-    className="notice"
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      flexWrap: "wrap",
-    }}
-  >
-    <span>Incoming {call.type} call</span>
 
-    <div style={{ display: "flex", gap: 8 }}>
-      <button
-        className="primaryBtn"
-        onClick={async () => {
-          if (!user) return;
-
-          try {
-            setCallStatus("Connecting...");
-            if (activeCall) {
-              setNotice("End the current call before accepting another.");
-              return;
-            }
-            setActiveCallType(call.type);
-            setRemoteStream(null);
-            const session = await acceptCall(
-              db,
-              call.id,
-              user.uid,
-              {
-                onRemoteStream: (stream) => setRemoteStream(stream),
-                onStatus: (status) => {
-                  if (status === "connected") setCallStatus("Call connected");
-                  else if (status === "failed") setCallStatus("Connection failed. Check your network.");
-                  else if (status === "disconnected") setCallStatus("Call disconnected");
-                  else if (status === "ended" || status === "declined") {
-                    setActiveCall(null);
-                    setRemoteStream(null);
-                    setCallStatus(status === "declined" ? "Call declined" : "Call ended");
-                  }
-                },
-              }
-            );
-
-            setActiveCall(session);
-            setCallStatus("Call connected");
-            setNotice("Call accepted.");
-          } catch (error) {
-            console.error("Accept call failed:", error);
-            setCallStatus("Could not accept call.");
-            setNotice(
-              error instanceof Error
-                ? error.message
-                : "Could not accept call."
-            );
-          }
-        }}
-      >
-        Accept
-      </button>
-
-      <button
-        className="secondaryBtn"
-        onClick={async () => {
-          if (!user) return;
-
-          try {
-            await rejectCall(db, call.id, user.uid);
-            setNotice("Call declined.");
-          } catch (error) {
-            console.error("Reject call failed:", error);
-            setNotice(
-              error instanceof Error
-                ? error.message
-                : "Could not reject call."
-            );
-          }
-        }}
-      >
-        Reject
-      </button>
-    </div>
-  </div>
-))}
-
-{(activeCall || callStatus) && (
-  <div className="notice" style={{ display: "grid", gap: 10 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-      <strong>{activeCallType === "video" ? "Video call" : "Audio call"}</strong>
-      <span>{callStatus}</span>
-    </div>
-    {activeCallType === "video" && activeCall && (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
-        <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", minHeight: 110, maxHeight: 220, objectFit: "cover", background: "#080d18", borderRadius: 10 }} />
-        <video ref={remoteVideoRef} autoPlay playsInline style={{ width: "100%", minHeight: 110, maxHeight: 220, objectFit: "cover", background: "#080d18", borderRadius: 10 }} />
-      </div>
-    )}
-    <audio ref={remoteAudioRef} autoPlay />
-    {activeCall && (
-      <button type="button" className="secondaryBtn" onClick={() => void endActiveCall()} style={{ background: "#a52d42", borderColor: "#a52d42", color: "white" }}>
-        End call
-      </button>
-    )}
-  </div>
-)}
-              
 
               <section className="messages">
                 <div className="day">TODAY</div>
