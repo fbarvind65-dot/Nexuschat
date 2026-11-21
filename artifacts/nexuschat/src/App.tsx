@@ -1620,8 +1620,7 @@ async function handleSignOut() {
               <h2>Welcome to NexusChat</h2>
 
               <p>
-                Select a conversation to start chatting, or create a new
-                demo conversation.
+                Select a conversation to start chatting, or start a chat with a registered NexusChat contact.
               </p>
 
               <button
@@ -1695,7 +1694,7 @@ async function handleSignOut() {
     setNotice(
       selectedChat?.id.startsWith("group-")
         ? "Group video calling is not available yet."
-        : "Real video calling needs the other user's Firebase UID. Demo chats cannot receive calls yet."
+        : "Real video calling needs the other user's Firebase UID. Video calling requires the other user's Firebase UID."
     );
   }}
 >
