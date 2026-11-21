@@ -28,6 +28,7 @@ import {
   serverTimestamp,
   orderBy,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   arrayUnion,
@@ -71,7 +72,6 @@ type Message = {
 type Chat = {
   id: string;
   name: string;
-  phone?: string;
   phone?: string;
   avatar: string;
   color: string;
@@ -457,7 +457,7 @@ console.log("CONVERSATION ID:", conversationId);
       {
         uid: currentUser.uid,
         displayName,
-phoneNumber: currentUser.phoneNumber || phoneNumber || "",
+...(currentUser.phoneNumber ? { phoneNumber: currentUser.phoneNumber } : {}),
 updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -977,22 +977,31 @@ if (isRegistering) {
 
 
 if (isRegistering) {
-  if (!phoneNumber.trim()) {
+  const normalizedPhone = phoneNumber.trim();
+  if (!normalizedPhone) {
     setLoginError("Enter your phone number.");
     return;
   }
 
-  await createUserWithEmailAndPassword(auth, email, password);
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const uid = credential.user.uid;
+  const displayName = email.split("@")[0];
 
-  await setDoc(
-    doc(db, "Users", auth.currentUser!.uid),
-    {
-      Name: email.split("@")[0],
+  await Promise.all([
+    setDoc(doc(db, "Users", uid), {
+      uid,
+      Name: displayName,
       Email: email,
-      PhoneNumber: phoneNumber.trim(),
-    },
-    { merge: true }
-  );
+      PhoneNumber: normalizedPhone,
+    }, { merge: true }),
+    setDoc(doc(db, "users", uid), {
+      uid,
+      displayName,
+      email,
+      phoneNumber: normalizedPhone,
+      updatedAt: serverTimestamp(),
+    }, { merge: true }),
+  ]);
 } else {
   await signInWithEmailAndPassword(auth, email, password);
 }
@@ -1094,6 +1103,23 @@ async function handleSignOut() {
                   disabled={loginLoading}
                 />
               </label>
+
+              {isRegistering && (
+                <label className="auth-field">
+                  Phone number
+                  <input
+                    className="auth-input"
+                    type="tel"
+                    name="phoneNumber"
+                    placeholder="Enter your phone number"
+                    autoComplete="tel"
+                    required
+                    value={phoneNumber}
+                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    disabled={loginLoading}
+                  />
+                </label>
+              )}
 
               <label className="auth-field">
                 Password
