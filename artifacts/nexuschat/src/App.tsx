@@ -917,7 +917,7 @@ await setDoc(
 
   if (messageSnapshot.empty) {
     throw new Error(
-      "Message not found in Firebase. It may be an older demo message."
+      "Message could not be found in this conversation."
     );
   }
 
@@ -1556,7 +1556,7 @@ async function handleSignOut() {
       type="button"
       onClick={() => {
         setShowMenu(false);
-        setNotice("New Community selected.");
+        setNotice("New Communities is not available yet.");
       }}
       style={menuButtonStyle}
     >
@@ -1567,7 +1567,7 @@ async function handleSignOut() {
       type="button"
       onClick={() => {
         setShowMenu(false);
-        setNotice("Broadcast List selected.");
+        setNotice("Broadcast lists are not available yet.");
       }}
       style={menuButtonStyle}
     >
@@ -1578,7 +1578,7 @@ async function handleSignOut() {
       type="button"
       onClick={() => {
         setShowMenu(false);
-        setNotice("Profile settings coming soon.");
+        setNotice("Profile settings are not available yet.");
       }}
       style={menuButtonStyle}
     >
@@ -1833,7 +1833,7 @@ async function handleSignOut() {
                 </button> <button
   className="iconBtn"
   title="Audio call"
-  onClick={() => alert("Audio calling setup abhi baaki hai")}
+  onClick={() => setNotice("Audio calling is not connected yet.")}
 >
   <Phone size={19} />
 </button>
@@ -1846,7 +1846,7 @@ async function handleSignOut() {
     setNotice(
       selectedChat?.id.startsWith("group-")
         ? "Group video calling is not available yet."
-        : "Real video calling needs the other user's Firebase UID. Video calling requires the other user's Firebase UID."
+        : "Video calling is not connected yet."
     );
   }}
 >
