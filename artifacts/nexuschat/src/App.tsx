@@ -470,35 +470,68 @@ updatedAt: serverTimestamp(),
     return unsubscribe;
   }, []);
   
-  let cancelled = false;
+  useEffect(() => {
+    const currentUser = user;
 
-  async function loadSavedContacts() {
-    try {
-      const snapshot = await getDocs(collection(db, "Users"));
+    if (!currentUser) {
+      setSavedContacts([]);
+      return;
+    }
 
-      if (cancelled) return;
+    let cancelled = false;
 
-      const contacts: Chat[] = snapshot.docs
-        .filter((item) => item.id !== user.uid)
-        .map((item) => {
-          
-const data = item.data();
+    async function loadSavedContacts() {
+      try {
+        const snapshot = await getDocs(collection(db, "Users"));
 
-const name =
-  data.displayName ||
-  data.name ||
-  data.Name ||
-  data.Email?.split("@")[0] ||
-  "NexusChat User";
+        if (cancelled) return;
 
-const phone =
-  data.PhoneNumber ||
-  data.phoneNumber ||
-  data.phone ||
-  data.phoneNumber ||
-  "";
-  
-useEffect(() => {
+        const contacts: Chat[] = snapshot.docs
+          .filter((item) => item.id !== currentUser.uid)
+          .map((item) => {
+            const data = item.data();
+
+            const name =
+              data.displayName ||
+              data.name ||
+              data.Name ||
+              data.Email?.split("@")[0] ||
+              "NexusChat User";
+
+            const phone =
+              data.PhoneNumber ||
+              data.phoneNumber ||
+              data.phone ||
+              "";
+
+            return {
+              id: item.id,
+              name,
+              phone,
+              avatar: name.charAt(0).toUpperCase(),
+              color: "#8177ff",
+              online: false,
+              unread: 0,
+              messages: [],
+            };
+          });
+
+        setSavedContacts(contacts);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Could not load registered contacts:", error);
+        setNotice("Could not load registered contacts.");
+      }
+    }
+
+    void loadSavedContacts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
   if (!user) return;
 
   const q = query(
