@@ -267,8 +267,7 @@ async function shareUpdate() {
   const ownerId = currentUser.uid;
 
   try {
-
-    const docRef = await addDoc(collection(db, "updates"), {
+    await addDoc(collection(db, "updates"), {
       text,
       userId: ownerId,
       userName: currentUser.displayName || currentUser.email || "NexusChat User",
@@ -277,21 +276,8 @@ async function shareUpdate() {
 
     if (auth.currentUser?.uid !== ownerId) return;
 
-    setUpdates((prev) => [
-      {
-        id: docRef.id,
-        text,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-      ...prev,
-    ]);
-
     setUpdateDraft("");
     setNotice("Update shared successfully!");
-
   } catch (error) {
     if (auth.currentUser?.uid !== ownerId) return;
     console.error("Share update failed:", error);
@@ -299,6 +285,61 @@ async function shareUpdate() {
   }
 }
   
+
+useEffect(() => {
+  if (!user) {
+    setUpdates([]);
+    return;
+  }
+
+  const ownerId = user.uid;
+  const updatesQuery = query(
+    collection(db, "updates"),
+    where("userId", "==", ownerId)
+  );
+
+  const unsubscribe = onSnapshot(
+    updatesQuery,
+    (snapshot) => {
+      if (auth.currentUser?.uid !== ownerId) return;
+
+      const loadedUpdates = snapshot.docs
+        .map((item) => {
+          const data = item.data();
+          const createdAt = data.createdAt;
+          const timestamp =
+            typeof createdAt?.toMillis === "function"
+              ? createdAt.toMillis()
+              : 0;
+
+          return {
+            id: item.id,
+            text: String(data.text ?? ""),
+            time:
+              typeof createdAt?.toDate === "function"
+                ? createdAt.toDate().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "",
+            timestamp,
+          };
+        })
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(({ id, text, time }) => ({ id, text, time }));
+
+      setUpdates(loadedUpdates);
+    },
+    (error) => {
+      if (auth.currentUser?.uid !== ownerId) return;
+      console.error("Could not load updates:", error);
+      setNotice("Could not load updates. Check Firestore rules.");
+    }
+  );
+
+  return () => unsubscribe();
+}, [user]);
+
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -339,24 +380,21 @@ useEffect(() => {
   if (selectedChat.id.startsWith("group-")) return;
   if (selectedChat.id === currentUser.uid) return;
 
-  const conversationId = getConversationId(
-    currentUser.uid,
-    selectedChat.id
-  );
-  
-console.log("MY UID:", currentUser.uid);
-console.log("RECIPIENT UID:", selectedChat.id);
-console.log("CONVERSATION ID:", conversationId);
+  const selectedChatId = selectedChat.id;
+  const conversationId = getConversationId(currentUser.uid, selectedChatId);
   const messagesRef = collection(
     db,
     "conversations",
     conversationId,
     "messages"
   );
+  const orderedMessages = query(messagesRef, orderBy("createdAt", "asc"));
 
   const unsubscribe = onSnapshot(
-    messagesRef,
+    orderedMessages,
     (snapshot) => {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+
       const messages: Message[] = snapshot.docs.map((item) => {
         const data = item.data();
 
@@ -365,15 +403,17 @@ console.log("CONVERSATION ID:", conversationId);
           text: data.text || "",
           sender: data.senderId === currentUser.uid ? "me" : "other",
           time: data.time || "",
+          forwarded: Boolean(data.forwarded),
         };
       });
 
-      updateChat(selectedChat.id, (chat) => ({
+      updateChat(selectedChatId, (chat) => ({
         ...chat,
         messages,
       }));
     },
     (error) => {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
       console.error("Live messages failed:", error);
       setNotice("Could not load live messages. Check Firestore rules.");
     }
@@ -477,64 +517,113 @@ updatedAt: serverTimestamp(),
   }, [user]);
 
   useEffect(() => {
-  if (!user) return;
-
-  const q = query(
-    collection(db, "conversations"),
-    where("participantIds", "array-contains", user.uid)
-  );
-
-  const unsubscribe = onSnapshot(q, async (snapshot) => {
-    const loadedChats: Chat[] = [];
-
-    for (const item of snapshot.docs) {
-      const data = item.data();
-      const otherUid = data.participantIds.find(
-        (id: string) => id !== user.uid
-      );
-
-      if (!otherUid) continue;
-
-      const userDoc = await getDoc(doc(db, "Users", otherUid));
-      const userData = userDoc.exists() ? userDoc.data() : {};
-
-      const msgSnap = await getDocs(
-        collection(db, "conversations", item.id, "messages")
-      );
-
-      const messages: Message[] = msgSnap.docs.map((m) => {
-        const d = m.data();
-        return {
-          id: d.id || m.id,
-          text: d.text,
-          sender: d.senderId === user.uid ? "me" : "other",
-          time: d.time,
-        };
-      });
-
-      loadedChats.push({
-        id: otherUid,
-        name: userData.Name || userData.displayName || "NexusChat User",
-        phone: userData.PhoneNumber || "",
-        avatar: (userData.Name || "N").charAt(0),
-        color: "#8177ff",
-        online: false,
-        unread: 0,
-        messages,
-      });
+    if (!user) {
+      setChats([]);
+      return;
     }
 
-    setChats((previousChats) => {
-  const groups = previousChats.filter(
-    (chat) => chat.id.startsWith("group-")
-  );
+    let cancelled = false;
+    let loadVersion = 0;
 
-  return [...groups, ...loadedChats];
-});
-  });
+    const conversationsQuery = query(
+      collection(db, "conversations"),
+      where("participantIds", "array-contains", user.uid)
+    );
 
-  return () => unsubscribe();
-}, [user]);
+    const unsubscribe = onSnapshot(
+      conversationsQuery,
+      async (snapshot) => {
+        const version = ++loadVersion;
+        const loadedChats: Chat[] = [];
+
+        for (const item of snapshot.docs) {
+          if (
+            cancelled ||
+            version !== loadVersion ||
+            auth.currentUser?.uid !== user.uid
+          ) return;
+
+          const data = item.data();
+          const participantIds = Array.isArray(data.participantIds)
+            ? data.participantIds
+            : [];
+          const otherUid = participantIds.find(
+            (id: string) => id !== user.uid
+          );
+
+          if (!otherUid) continue;
+
+          const userDoc = await getDoc(doc(db, "Users", otherUid));
+          if (
+            cancelled ||
+            version !== loadVersion ||
+            auth.currentUser?.uid !== user.uid
+          ) return;
+
+          const userData = userDoc.exists() ? userDoc.data() : {};
+          const messagesQuery = query(
+            collection(db, "conversations", item.id, "messages"),
+            orderBy("createdAt", "asc")
+          );
+          const msgSnap = await getDocs(messagesQuery);
+
+          if (
+            cancelled ||
+            version !== loadVersion ||
+            auth.currentUser?.uid !== user.uid
+          ) return;
+
+          const messages: Message[] = msgSnap.docs.map((m) => {
+            const messageData = m.data();
+            return {
+              id: messageData.id || m.id,
+              text: messageData.text || "",
+              sender: messageData.senderId === user.uid ? "me" : "other",
+              time: messageData.time || "",
+              forwarded: Boolean(messageData.forwarded),
+            };
+          });
+
+          const displayName =
+            userData.Name || userData.displayName || "NexusChat User";
+
+          loadedChats.push({
+            id: otherUid,
+            name: displayName,
+            phone: userData.PhoneNumber || userData.phoneNumber || "",
+            avatar: String(displayName).charAt(0).toUpperCase() || "N",
+            color: "#8177ff",
+            online: false,
+            unread: 0,
+            messages,
+          });
+        }
+
+        if (
+          cancelled ||
+          version !== loadVersion ||
+          auth.currentUser?.uid !== user.uid
+        ) return;
+
+        setChats((previousChats) => {
+          const groups = previousChats.filter((chat) =>
+            chat.id.startsWith("group-")
+          );
+          return [...groups, ...loadedChats];
+        });
+      },
+      (error) => {
+        if (cancelled || auth.currentUser?.uid !== user.uid) return;
+        console.error("Could not load conversations:", error);
+        setNotice("Could not load conversations. Check Firestore rules.");
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [user]);
 useEffect(() => {
   if (!user) return;
   const ownerId = user.uid;
@@ -862,10 +951,23 @@ await setDoc(
   }
   }
 
-  function forwardMessage(
+  async function forwardMessage(
     targetChatId: string,
     message: Message
   ) {
+    const currentUser = auth.currentUser;
+    const targetChat = chats.find((chat) => chat.id === targetChatId);
+
+    if (!currentUser || !targetChat) {
+      setNotice("Open a valid conversation before forwarding.");
+      return;
+    }
+
+    if (targetChatId === currentUser.uid) {
+      setNotice("You cannot forward a message to your own account.");
+      return;
+    }
+
     const forwarded: Message = {
       id: makeId(),
       text: message.text,
@@ -874,14 +976,80 @@ await setDoc(
       forwarded: true,
     };
 
-    updateChat(targetChatId, (chat) => ({
-      ...chat,
-      messages: [...chat.messages, forwarded],
-    }));
+    try {
+      if (targetChatId.startsWith("group-")) {
+        const groupSnapshot = await getDocs(
+          query(
+            collection(db, "groups"),
+            where("id", "==", targetChatId),
+            where("ownerId", "==", currentUser.uid)
+          )
+        );
+        const groupDocument = groupSnapshot.docs[0];
 
-    setModal(null);
-    setSelectedId(targetChatId);
-    setNotice("Message forwarded.");
+        if (!groupDocument) {
+          throw new Error("Saved group not found.");
+        }
+
+        await updateDoc(groupDocument.ref, {
+          messages: arrayUnion(forwarded),
+        });
+      } else {
+        const conversationId = getConversationId(
+          currentUser.uid,
+          targetChatId
+        );
+        const conversationRef = doc(db, "conversations", conversationId);
+
+        await setDoc(
+          conversationRef,
+          {
+            participantIds: [currentUser.uid, targetChatId].sort(),
+          },
+          { merge: true }
+        );
+
+        await setDoc(
+          doc(conversationRef, "messages", forwarded.id),
+          {
+            id: forwarded.id,
+            text: forwarded.text,
+            senderId: currentUser.uid,
+            time: forwarded.time,
+            forwarded: true,
+            createdAt: serverTimestamp(),
+          }
+        );
+
+        await setDoc(
+          conversationRef,
+          {
+            lastMessage: forwarded.text,
+            lastMessageAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+
+      updateChat(targetChatId, (chat) => ({
+        ...chat,
+        messages: [...chat.messages, forwarded],
+      }));
+
+      setModal(null);
+      setSelectedId(targetChatId);
+      setNotice("Message forwarded and saved.");
+    } catch (error) {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+      console.error("Message forwarding failed:", error);
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not forward the message."
+      );
+    }
   }
 
   
@@ -1219,7 +1387,6 @@ async function handleSignOut() {
         <button
           type="button"
           onClick={async () => {
-            setNotice("Create Group button clicked!");
             const name = newGroupName.trim();
             const ownerId = user?.uid;
 
@@ -1359,21 +1526,6 @@ async function handleSignOut() {
 </div>
 
           <div className="searchWrap"> 
-            <button
-  type="button"
-  aria-label="More options"
-  onClick={() => setShowMenu((previous) => !previous)}
-  style={{
-    background: "transparent",
-    border: "none",
-    color: "white",
-    fontSize: 26,
-    cursor: "pointer",
-    padding: "4px 10px",
-  }}
->
-  ⋮
-</button>
             {showMenu && (
   <div
     style={{
@@ -1667,7 +1819,7 @@ async function handleSignOut() {
                   >
                     {selectedChat.online
                       ? "● Online"
-                      : "Demo conversation"}
+                      : "NexusChat contact"}
                   </div>
                 </div>
 
