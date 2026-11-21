@@ -81,62 +81,7 @@ type Chat = {
 };
 
 
-const initialChats: Chat[] = [
-  {
-    id: "1",
-    name: "NexusChat Team",
-    avatar: "N",
-    color: "#6c63ff",
-    online: true,
-    unread: 1,
-    messages: [
-      {
-        id: "m1",
-        text: "Welcome to NexusChat! 👋",
-        sender: "other",
-        time: "10:30",
-      },
-      {
-        id: "m2",
-        text: "Your chat interface is ready.",
-        sender: "other",
-        time: "10:31",
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "Friends Group",
-    avatar: "F",
-    color: "#e879a9",
-    online: true,
-    unread: 0,
-    messages: [
-      {
-        id: "m3",
-        text: "Hey everyone! 😊",
-        sender: "other",
-        time: "09:45",
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "Alex",
-    avatar: "A",
-    color: "#22a699",
-    online: false,
-    unread: 0,
-    messages: [
-      {
-        id: "m4",
-        text: "See you later!",
-        sender: "other",
-        time: "Yesterday",
-      },
-    ],
-  },
-];
+const initialChats: Chat[] = [];
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -366,7 +311,7 @@ async function shareUpdate() {
   const [loginError, setLoginError] = useState("");
   const [loginNotice, setLoginNotice] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const [chats, setChats] = useState<Chat[]>(initialChats);
+  const [chats, setChats] = useState<Chat[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -443,7 +388,7 @@ console.log("CONVERSATION ID:", conversationId);
   setAuthReady(true);
 
   if (!currentUser) {
-    setChats(initialChats);
+    setChats([]);
   }
 
   if (currentUser) {
@@ -936,34 +881,10 @@ await setDoc(
 
     setModal(null);
     setSelectedId(targetChatId);
-    setNotice("Message forwarded in this demo.");
+    setNotice("Message forwarded.");
   }
 
   
-function createChat() {
-  const name = newChatName.trim();
-  const phone = newChatPhone.trim();
-
-  if (!name) return;
-
-  const chat: Chat = {
-    id: makeId(),
-    name,
-    phone,
-    avatar: name.charAt(0).toUpperCase(),
-    color: "#8177ff",
-    online: false,
-    unread: 0,
-    messages: [],
-  };
-
-  setChats((previous) => [chat, ...previous]);
-  setSelectedId(chat.id);
-  setNewChatName("");
-  setNewChatPhone("");
-  setModal(null);
-  setNotice("Demo chat created.");
-}
 
   async function sendEmailLogin(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -1674,7 +1595,7 @@ async function handleSignOut() {
 
               <div className="profileEmail">
                 {authReady
-                  ? user?.email || user?.phoneNumber || "Demo mode"
+                  ? user?.email || user?.phoneNumber || "Not signed in"
                   : "Checking account..."}
               </div>
             </div>
@@ -2031,7 +1952,7 @@ async function handleSignOut() {
                 </form>
 
                 <div className="hint">
-                  Demo chat · Press Enter to send
+                  Messages are saved to your NexusChat conversation
                 </div>
               </div>
             </>
@@ -2074,7 +1995,7 @@ async function handleSignOut() {
             {modal.type === "forward" && (
               <>
                 <p>
-                  Choose a demo conversation to forward this message to.
+                  Choose a conversation to forward this message to.
                 </p>
 
                 <div className="modalList">
@@ -2123,9 +2044,7 @@ async function handleSignOut() {
             {modal.type === "delete" && (
               <>
                 <p>
-                  This removes the message from this local demo
-                  conversation. It does not delete a message from
-                  another user's device.
+                  This removes the message from your chat view. It does not delete a message from the other user's device.
                 </p>
 
                 <button
