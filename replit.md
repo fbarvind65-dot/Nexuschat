@@ -1,6 +1,6 @@
-# [Project name]
+# NexusChat
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A mobile-friendly messaging web app with Firebase Authentication and Firestore-backed conversations.
 
 ## Run & Operate
 
@@ -9,7 +9,8 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- NexusChat uses the Firebase web configuration in `artifacts/nexuschat/src/firebase.ts`.
+- The separate API and Drizzle workspace scaffolding is not used by the chat client; configure `DATABASE_URL` only when intentionally running the PostgreSQL API/database tasks.
 
 ## Stack
 
@@ -22,7 +23,11 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/nexuschat/src/App.tsx` — main chat, authentication, contacts, updates, and group UI.
+- `artifacts/nexuschat/src/firebase.ts` — Firebase app, Auth, and Firestore initialization.
+- `artifacts/nexuschat/src/Settings.tsx` — settings screen.
+- `artifacts/nexuschat/src/artifacts/nexuschat/src/callService.ts` — WebRTC call signaling helpers.
+- `artifacts/mockup-sandbox` — isolated component-preview sandbox; its sample conversations are not live app data.
 
 ## Architecture decisions
 
@@ -30,7 +35,7 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+NexusChat currently provides email/password account access, registered-contact discovery, personal Firestore conversations, owner-managed groups, and a basic updates feed. Calling, communities, broadcast lists, and several Settings categories still need implementation.
 
 ## User preferences
 

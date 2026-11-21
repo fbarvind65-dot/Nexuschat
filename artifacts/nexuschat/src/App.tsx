@@ -28,6 +28,7 @@ import {
   serverTimestamp,
   orderBy,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   arrayUnion,
@@ -72,7 +73,6 @@ type Chat = {
   id: string;
   name: string;
   phone?: string;
-  phone?: string;
   avatar: string;
   color: string;
   online: boolean;
@@ -81,62 +81,7 @@ type Chat = {
 };
 
 
-const initialChats: Chat[] = [
-  {
-    id: "1",
-    name: "NexusChat Team",
-    avatar: "N",
-    color: "#6c63ff",
-    online: true,
-    unread: 1,
-    messages: [
-      {
-        id: "m1",
-        text: "Welcome to NexusChat! 👋",
-        sender: "other",
-        time: "10:30",
-      },
-      {
-        id: "m2",
-        text: "Your chat interface is ready.",
-        sender: "other",
-        time: "10:31",
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "Friends Group",
-    avatar: "F",
-    color: "#e879a9",
-    online: true,
-    unread: 0,
-    messages: [
-      {
-        id: "m3",
-        text: "Hey everyone! 😊",
-        sender: "other",
-        time: "09:45",
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "Alex",
-    avatar: "A",
-    color: "#22a699",
-    online: false,
-    unread: 0,
-    messages: [
-      {
-        id: "m4",
-        text: "See you later!",
-        sender: "other",
-        time: "Yesterday",
-      },
-    ],
-  },
-];
+const initialChats: Chat[] = [];
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -322,8 +267,7 @@ async function shareUpdate() {
   const ownerId = currentUser.uid;
 
   try {
-
-    const docRef = await addDoc(collection(db, "updates"), {
+    await addDoc(collection(db, "updates"), {
       text,
       userId: ownerId,
       userName: currentUser.displayName || currentUser.email || "NexusChat User",
@@ -332,21 +276,8 @@ async function shareUpdate() {
 
     if (auth.currentUser?.uid !== ownerId) return;
 
-    setUpdates((prev) => [
-      {
-        id: docRef.id,
-        text,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-      ...prev,
-    ]);
-
     setUpdateDraft("");
     setNotice("Update shared successfully!");
-
   } catch (error) {
     if (auth.currentUser?.uid !== ownerId) return;
     console.error("Share update failed:", error);
@@ -354,6 +285,61 @@ async function shareUpdate() {
   }
 }
   
+
+useEffect(() => {
+  if (!user) {
+    setUpdates([]);
+    return;
+  }
+
+  const ownerId = user.uid;
+  const updatesQuery = query(
+    collection(db, "updates"),
+    where("userId", "==", ownerId)
+  );
+
+  const unsubscribe = onSnapshot(
+    updatesQuery,
+    (snapshot) => {
+      if (auth.currentUser?.uid !== ownerId) return;
+
+      const loadedUpdates = snapshot.docs
+        .map((item) => {
+          const data = item.data();
+          const createdAt = data.createdAt;
+          const timestamp =
+            typeof createdAt?.toMillis === "function"
+              ? createdAt.toMillis()
+              : 0;
+
+          return {
+            id: item.id,
+            text: String(data.text ?? ""),
+            time:
+              typeof createdAt?.toDate === "function"
+                ? createdAt.toDate().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "",
+            timestamp,
+          };
+        })
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(({ id, text, time }) => ({ id, text, time }));
+
+      setUpdates(loadedUpdates);
+    },
+    (error) => {
+      if (auth.currentUser?.uid !== ownerId) return;
+      console.error("Could not load updates:", error);
+      setNotice("Could not load updates. Check Firestore rules.");
+    }
+  );
+
+  return () => unsubscribe();
+}, [user]);
+
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -366,7 +352,7 @@ async function shareUpdate() {
   const [loginError, setLoginError] = useState("");
   const [loginNotice, setLoginNotice] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const [chats, setChats] = useState<Chat[]>(initialChats);
+  const [chats, setChats] = useState<Chat[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -394,24 +380,21 @@ useEffect(() => {
   if (selectedChat.id.startsWith("group-")) return;
   if (selectedChat.id === currentUser.uid) return;
 
-  const conversationId = getConversationId(
-    currentUser.uid,
-    selectedChat.id
-  );
-  
-console.log("MY UID:", currentUser.uid);
-console.log("RECIPIENT UID:", selectedChat.id);
-console.log("CONVERSATION ID:", conversationId);
+  const selectedChatId = selectedChat.id;
+  const conversationId = getConversationId(currentUser.uid, selectedChatId);
   const messagesRef = collection(
     db,
     "conversations",
     conversationId,
     "messages"
   );
+  const orderedMessages = query(messagesRef, orderBy("createdAt", "asc"));
 
   const unsubscribe = onSnapshot(
-    messagesRef,
+    orderedMessages,
     (snapshot) => {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+
       const messages: Message[] = snapshot.docs.map((item) => {
         const data = item.data();
 
@@ -420,15 +403,17 @@ console.log("CONVERSATION ID:", conversationId);
           text: data.text || "",
           sender: data.senderId === currentUser.uid ? "me" : "other",
           time: data.time || "",
+          forwarded: Boolean(data.forwarded),
         };
       });
 
-      updateChat(selectedChat.id, (chat) => ({
+      updateChat(selectedChatId, (chat) => ({
         ...chat,
         messages,
       }));
     },
     (error) => {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
       console.error("Live messages failed:", error);
       setNotice("Could not load live messages. Check Firestore rules.");
     }
@@ -443,7 +428,7 @@ console.log("CONVERSATION ID:", conversationId);
   setAuthReady(true);
 
   if (!currentUser) {
-    setChats(initialChats);
+    setChats([]);
   }
 
   if (currentUser) {
@@ -457,7 +442,7 @@ console.log("CONVERSATION ID:", conversationId);
       {
         uid: currentUser.uid,
         displayName,
-phoneNumber: currentUser.phoneNumber || phoneNumber || "",
+...(currentUser.phoneNumber ? { phoneNumber: currentUser.phoneNumber } : {}),
 updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -470,93 +455,175 @@ updatedAt: serverTimestamp(),
     return unsubscribe;
   }, []);
   
-  let cancelled = false;
+  useEffect(() => {
+    const currentUser = user;
 
-  async function loadSavedContacts() {
-    try {
-      const snapshot = await getDocs(collection(db, "Users"));
-
-      if (cancelled) return;
-
-      const contacts: Chat[] = snapshot.docs
-        .filter((item) => item.id !== user.uid)
-        .map((item) => {
-          
-const data = item.data();
-
-const name =
-  data.displayName ||
-  data.name ||
-  data.Name ||
-  data.Email?.split("@")[0] ||
-  "NexusChat User";
-
-const phone =
-  data.PhoneNumber ||
-  data.phoneNumber ||
-  data.phone ||
-  data.phoneNumber ||
-  "";
-  
-useEffect(() => {
-  if (!user) return;
-
-  const q = query(
-    collection(db, "conversations"),
-    where("participantIds", "array-contains", user.uid)
-  );
-
-  const unsubscribe = onSnapshot(q, async (snapshot) => {
-    const loadedChats: Chat[] = [];
-
-    for (const item of snapshot.docs) {
-      const data = item.data();
-      const otherUid = data.participantIds.find(
-        (id: string) => id !== user.uid
-      );
-
-      if (!otherUid) continue;
-
-      const userDoc = await getDoc(doc(db, "Users", otherUid));
-      const userData = userDoc.exists() ? userDoc.data() : {};
-
-      const msgSnap = await getDocs(
-        collection(db, "conversations", item.id, "messages")
-      );
-
-      const messages: Message[] = msgSnap.docs.map((m) => {
-        const d = m.data();
-        return {
-          id: d.id || m.id,
-          text: d.text,
-          sender: d.senderId === user.uid ? "me" : "other",
-          time: d.time,
-        };
-      });
-
-      loadedChats.push({
-        id: otherUid,
-        name: userData.Name || userData.displayName || "NexusChat User",
-        phone: userData.PhoneNumber || "",
-        avatar: (userData.Name || "N").charAt(0),
-        color: "#8177ff",
-        online: false,
-        unread: 0,
-        messages,
-      });
+    if (!currentUser) {
+      setSavedContacts([]);
+      return;
     }
 
-    setChats((previousChats) => {
-  const groups = previousChats.filter(
-    (chat) => chat.id.startsWith("group-")
-  );
+    let cancelled = false;
 
-  return [...groups, ...loadedChats];
-});
-  });
+    async function loadSavedContacts() {
+      try {
+        const snapshot = await getDocs(collection(db, "Users"));
 
-  return () => unsubscribe();
-}, [user]);
+        if (cancelled) return;
+
+        const contacts: Chat[] = snapshot.docs
+          .filter((item) => item.id !== currentUser.uid)
+          .map((item) => {
+            const data = item.data();
+
+            const name =
+              data.displayName ||
+              data.name ||
+              data.Name ||
+              data.Email?.split("@")[0] ||
+              "NexusChat User";
+
+            const phone =
+              data.PhoneNumber ||
+              data.phoneNumber ||
+              data.phone ||
+              "";
+
+            return {
+              id: item.id,
+              name,
+              phone,
+              avatar: name.charAt(0).toUpperCase(),
+              color: "#8177ff",
+              online: false,
+              unread: 0,
+              messages: [],
+            };
+          });
+
+        setSavedContacts(contacts);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Could not load registered contacts:", error);
+        setNotice("Could not load registered contacts.");
+      }
+    }
+
+    void loadSavedContacts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setChats([]);
+      return;
+    }
+
+    let cancelled = false;
+    let loadVersion = 0;
+
+    const conversationsQuery = query(
+      collection(db, "conversations"),
+      where("participantIds", "array-contains", user.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      conversationsQuery,
+      async (snapshot) => {
+        const version = ++loadVersion;
+        const loadedChats: Chat[] = [];
+
+        for (const item of snapshot.docs) {
+          if (
+            cancelled ||
+            version !== loadVersion ||
+            auth.currentUser?.uid !== user.uid
+          ) return;
+
+          const data = item.data();
+          const participantIds = Array.isArray(data.participantIds)
+            ? data.participantIds
+            : [];
+          const otherUid = participantIds.find(
+            (id: string) => id !== user.uid
+          );
+
+          if (!otherUid) continue;
+
+          const userDoc = await getDoc(doc(db, "Users", otherUid));
+          if (
+            cancelled ||
+            version !== loadVersion ||
+            auth.currentUser?.uid !== user.uid
+          ) return;
+
+          const userData = userDoc.exists() ? userDoc.data() : {};
+          const messagesQuery = query(
+            collection(db, "conversations", item.id, "messages"),
+            orderBy("createdAt", "asc")
+          );
+          const msgSnap = await getDocs(messagesQuery);
+
+          if (
+            cancelled ||
+            version !== loadVersion ||
+            auth.currentUser?.uid !== user.uid
+          ) return;
+
+          const messages: Message[] = msgSnap.docs.map((m) => {
+            const messageData = m.data();
+            return {
+              id: messageData.id || m.id,
+              text: messageData.text || "",
+              sender: messageData.senderId === user.uid ? "me" : "other",
+              time: messageData.time || "",
+              forwarded: Boolean(messageData.forwarded),
+            };
+          });
+
+          const displayName =
+            userData.Name || userData.displayName || "NexusChat User";
+
+          loadedChats.push({
+            id: otherUid,
+            name: displayName,
+            phone: userData.PhoneNumber || userData.phoneNumber || "",
+            avatar: String(displayName).charAt(0).toUpperCase() || "N",
+            color: "#8177ff",
+            online: false,
+            unread: 0,
+            messages,
+          });
+        }
+
+        if (
+          cancelled ||
+          version !== loadVersion ||
+          auth.currentUser?.uid !== user.uid
+        ) return;
+
+        setChats((previousChats) => {
+          const groups = previousChats.filter((chat) =>
+            chat.id.startsWith("group-")
+          );
+          return [...groups, ...loadedChats];
+        });
+      },
+      (error) => {
+        if (cancelled || auth.currentUser?.uid !== user.uid) return;
+        console.error("Could not load conversations:", error);
+        setNotice("Could not load conversations. Check Firestore rules.");
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [user]);
 useEffect(() => {
   if (!user) return;
   const ownerId = user.uid;
@@ -709,7 +776,7 @@ async function sendMessage() {
 
       updateChat(selectedChat.id, (chat) => ({
         ...chat,
-        messages: [...chat.messages, message],
+        messages: [...chat.messages.filter((item) => item.id !== message.id), message],
       }));
 
       setDraft("");
@@ -762,7 +829,7 @@ await setDoc(
 );
     updateChat(selectedChat.id, (chat) => ({
       ...chat,
-      messages: [...chat.messages, message],
+      messages: [...chat.messages.filter((item) => item.id !== message.id), message],
     }));
 
     setDraft("");
@@ -850,7 +917,7 @@ await setDoc(
 
   if (messageSnapshot.empty) {
     throw new Error(
-      "Message not found in Firebase. It may be an older demo message."
+      "Message could not be found in this conversation."
     );
   }
 
@@ -884,10 +951,23 @@ await setDoc(
   }
   }
 
-  function forwardMessage(
+  async function forwardMessage(
     targetChatId: string,
     message: Message
   ) {
+    const currentUser = auth.currentUser;
+    const targetChat = chats.find((chat) => chat.id === targetChatId);
+
+    if (!currentUser || !targetChat) {
+      setNotice("Open a valid conversation before forwarding.");
+      return;
+    }
+
+    if (targetChatId === currentUser.uid) {
+      setNotice("You cannot forward a message to your own account.");
+      return;
+    }
+
     const forwarded: Message = {
       id: makeId(),
       text: message.text,
@@ -896,41 +976,83 @@ await setDoc(
       forwarded: true,
     };
 
-    updateChat(targetChatId, (chat) => ({
-      ...chat,
-      messages: [...chat.messages, forwarded],
-    }));
+    try {
+      if (targetChatId.startsWith("group-")) {
+        const groupSnapshot = await getDocs(
+          query(
+            collection(db, "groups"),
+            where("id", "==", targetChatId),
+            where("ownerId", "==", currentUser.uid)
+          )
+        );
+        const groupDocument = groupSnapshot.docs[0];
 
-    setModal(null);
-    setSelectedId(targetChatId);
-    setNotice("Message forwarded in this demo.");
+        if (!groupDocument) {
+          throw new Error("Saved group not found.");
+        }
+
+        await updateDoc(groupDocument.ref, {
+          messages: arrayUnion(forwarded),
+        });
+      } else {
+        const conversationId = getConversationId(
+          currentUser.uid,
+          targetChatId
+        );
+        const conversationRef = doc(db, "conversations", conversationId);
+
+        await setDoc(
+          conversationRef,
+          {
+            participantIds: [currentUser.uid, targetChatId].sort(),
+          },
+          { merge: true }
+        );
+
+        await setDoc(
+          doc(conversationRef, "messages", forwarded.id),
+          {
+            id: forwarded.id,
+            text: forwarded.text,
+            senderId: currentUser.uid,
+            time: forwarded.time,
+            forwarded: true,
+            createdAt: serverTimestamp(),
+          }
+        );
+
+        await setDoc(
+          conversationRef,
+          {
+            lastMessage: forwarded.text,
+            lastMessageAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+
+      updateChat(targetChatId, (chat) => ({
+        ...chat,
+        messages: [...chat.messages.filter((item) => item.id !== forwarded.id), forwarded],
+      }));
+
+      setModal(null);
+      setSelectedId(targetChatId);
+      setNotice("Message forwarded and saved.");
+    } catch (error) {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+      console.error("Message forwarding failed:", error);
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not forward the message."
+      );
+    }
   }
 
   
-function createChat() {
-  const name = newChatName.trim();
-  const phone = newChatPhone.trim();
-
-  if (!name) return;
-
-  const chat: Chat = {
-    id: makeId(),
-    name,
-    phone,
-    avatar: name.charAt(0).toUpperCase(),
-    color: "#8177ff",
-    online: false,
-    unread: 0,
-    messages: [],
-  };
-
-  setChats((previous) => [chat, ...previous]);
-  setSelectedId(chat.id);
-  setNewChatName("");
-  setNewChatPhone("");
-  setModal(null);
-  setNotice("Demo chat created.");
-}
 
   async function sendEmailLogin(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -954,45 +1076,35 @@ function createChat() {
     setLoginLoading(true);
     try {
       
+
+
+
 if (isRegistering) {
-  if (!phoneNumber.trim()) {
+  const normalizedPhone = phoneNumber.trim();
+  if (!normalizedPhone) {
     setLoginError("Enter your phone number.");
     return;
   }
 
-  await createUserWithEmailAndPassword(auth, email, password);
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const uid = credential.user.uid;
+  const displayName = email.split("@")[0];
 
-  await setDoc(
-    doc(db, "Users", auth.currentUser!.uid),
-    {
-      Name: email.split("@")[0],
+  await Promise.all([
+    setDoc(doc(db, "Users", uid), {
+      uid,
+      Name: displayName,
       Email: email,
-      PhoneNumber: phoneNumber.trim(),
-    },
-    { merge: true }
-  );
-} else {
-  await signInWithEmailAndPassword(auth, email, password);
-}
-
-
-if (isRegistering) {
-  if (!phoneNumber.trim()) {
-    setLoginError("Enter your phone number.");
-    return;
-  }
-
-  await createUserWithEmailAndPassword(auth, email, password);
-
-  await setDoc(
-    doc(db, "Users", auth.currentUser!.uid),
-    {
-      Name: email.split("@")[0],
-      Email: email,
-      PhoneNumber: phoneNumber.trim(),
-    },
-    { merge: true }
-  );
+      PhoneNumber: normalizedPhone,
+    }, { merge: true }),
+    setDoc(doc(db, "users", uid), {
+      uid,
+      displayName,
+      email,
+      phoneNumber: normalizedPhone,
+      updatedAt: serverTimestamp(),
+    }, { merge: true }),
+  ]);
 } else {
   await signInWithEmailAndPassword(auth, email, password);
 }
@@ -1094,6 +1206,23 @@ async function handleSignOut() {
                   disabled={loginLoading}
                 />
               </label>
+
+              {isRegistering && (
+                <label className="auth-field">
+                  Phone number
+                  <input
+                    className="auth-input"
+                    type="tel"
+                    name="phoneNumber"
+                    placeholder="Enter your phone number"
+                    autoComplete="tel"
+                    required
+                    value={phoneNumber}
+                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    disabled={loginLoading}
+                  />
+                </label>
+              )}
 
               <label className="auth-field">
                 Password
@@ -1258,7 +1387,6 @@ async function handleSignOut() {
         <button
           type="button"
           onClick={async () => {
-            setNotice("Create Group button clicked!");
             const name = newGroupName.trim();
             const ownerId = user?.uid;
 
@@ -1398,21 +1526,6 @@ async function handleSignOut() {
 </div>
 
           <div className="searchWrap"> 
-            <button
-  type="button"
-  aria-label="More options"
-  onClick={() => setShowMenu((previous) => !previous)}
-  style={{
-    background: "transparent",
-    border: "none",
-    color: "white",
-    fontSize: 26,
-    cursor: "pointer",
-    padding: "4px 10px",
-  }}
->
-  ⋮
-</button>
             {showMenu && (
   <div
     style={{
@@ -1443,7 +1556,7 @@ async function handleSignOut() {
       type="button"
       onClick={() => {
         setShowMenu(false);
-        setNotice("New Community selected.");
+        setNotice("New Communities is not available yet.");
       }}
       style={menuButtonStyle}
     >
@@ -1454,7 +1567,7 @@ async function handleSignOut() {
       type="button"
       onClick={() => {
         setShowMenu(false);
-        setNotice("Broadcast List selected.");
+        setNotice("Broadcast lists are not available yet.");
       }}
       style={menuButtonStyle}
     >
@@ -1465,7 +1578,7 @@ async function handleSignOut() {
       type="button"
       onClick={() => {
         setShowMenu(false);
-        setNotice("Profile settings coming soon.");
+        setNotice("Profile settings are not available yet.");
       }}
       style={menuButtonStyle}
     >
@@ -1634,7 +1747,7 @@ async function handleSignOut() {
 
               <div className="profileEmail">
                 {authReady
-                  ? user?.email || user?.phoneNumber || "Demo mode"
+                  ? user?.email || user?.phoneNumber || "Not signed in"
                   : "Checking account..."}
               </div>
             </div>
@@ -1659,8 +1772,7 @@ async function handleSignOut() {
               <h2>Welcome to NexusChat</h2>
 
               <p>
-                Select a conversation to start chatting, or create a new
-                demo conversation.
+                Select a conversation to start chatting, or start a chat with a registered NexusChat contact.
               </p>
 
               <button
@@ -1707,7 +1819,7 @@ async function handleSignOut() {
                   >
                     {selectedChat.online
                       ? "● Online"
-                      : "Demo conversation"}
+                      : "NexusChat contact"}
                   </div>
                 </div>
 
@@ -1721,7 +1833,7 @@ async function handleSignOut() {
                 </button> <button
   className="iconBtn"
   title="Audio call"
-  onClick={() => alert("Audio calling setup abhi baaki hai")}
+  onClick={() => setNotice("Audio calling is not connected yet.")}
 >
   <Phone size={19} />
 </button>
@@ -1734,7 +1846,7 @@ async function handleSignOut() {
     setNotice(
       selectedChat?.id.startsWith("group-")
         ? "Group video calling is not available yet."
-        : "Real video calling needs the other user's Firebase UID. Demo chats cannot receive calls yet."
+        : "Video calling is not connected yet."
     );
   }}
 >
@@ -1991,7 +2103,7 @@ async function handleSignOut() {
                 </form>
 
                 <div className="hint">
-                  Demo chat · Press Enter to send
+                  Messages are saved to your NexusChat conversation
                 </div>
               </div>
             </>
@@ -2034,7 +2146,7 @@ async function handleSignOut() {
             {modal.type === "forward" && (
               <>
                 <p>
-                  Choose a demo conversation to forward this message to.
+                  Choose a conversation to forward this message to.
                 </p>
 
                 <div className="modalList">
@@ -2083,9 +2195,7 @@ async function handleSignOut() {
             {modal.type === "delete" && (
               <>
                 <p>
-                  This removes the message from this local demo
-                  conversation. It does not delete a message from
-                  another user's device.
+                  This removes the message from your chat view. It does not delete a message from the other user's device.
                 </p>
 
                 <button
