@@ -226,6 +226,8 @@ export default function App() {
   const [incomingCalls, setIncomingCalls] = useState<IncomingCall[]>([]);
 const [activeCall, setActiveCall] = useState<CallSession | null>(null);
 const [callStatus, setCallStatus] = useState("");
+const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+const [activeCallType, setActiveCallType] = useState<CallType | null>(null);
   
 useEffect(() => {
   if (!user) {
@@ -372,6 +374,17 @@ const [showContactPicker, setShowContactPicker] = useState(false);
 const [contactSearch, setContactSearch] = useState("");
 const [savedContacts, setSavedContacts] = useState<Chat[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+const localVideoRef = useRef<HTMLVideoElement>(null);
+const remoteVideoRef = useRef<HTMLVideoElement>(null);
+const remoteAudioRef = useRef<HTMLAudioElement>(null);
+
+useEffect(() => {
+  if (localVideoRef.current && activeCall) {
+    localVideoRef.current.srcObject = activeCall.localStream;
+  }
+  if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+  if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream;
+}, [activeCall, remoteStream, activeCallType]);
   
 useEffect(() => {
   const currentUser = auth.currentUser;
@@ -719,7 +732,61 @@ const visibleChats = useMemo(() => {
     );
   }
 
-  function selectChat(chat: Chat) {
+  async function beginCall(type: CallType) {
+  const currentUser = auth.currentUser;
+  const target = selectedChat;
+  if (!currentUser || !target) {
+    setNotice("Open a contact before starting a call.");
+    return;
+  }
+  if (target.id.startsWith("group-")) {
+    setNotice("Group calls are not available yet.");
+    return;
+  }
+  if (target.id === currentUser.uid) {
+    setNotice("You cannot call your own account.");
+    return;
+  }
+  if (activeCall) {
+    setNotice("End the current call before starting another.");
+    return;
+  }
+
+  setActiveCallType(type);
+  setRemoteStream(null);
+  setCallStatus("Requesting microphone and camera permission…");
+  try {
+    const session = await startCall(db, currentUser.uid, target.id, type, {
+      onRemoteStream: (stream) => setRemoteStream(stream),
+      onStatus: (status) => {
+        if (status === "connected") setCallStatus("Call connected");
+        else if (status === "failed") setCallStatus("Connection failed. Check your network.");
+        else if (status === "disconnected") setCallStatus("Call disconnected");
+        else if (status === "ended" || status === "declined") {
+          setActiveCall(null);
+          setRemoteStream(null);
+          setCallStatus(status === "declined" ? "Call declined" : "Call ended");
+        }
+      },
+    });
+    setActiveCall(session);
+    setCallStatus("Calling… waiting for the other person to answer.");
+  } catch (error) {
+    console.error("Start call failed:", error);
+    setCallStatus("Call could not start.");
+    setNotice(error instanceof Error ? error.message : "Could not start the call.");
+  }
+}
+
+async function endActiveCall() {
+  const session = activeCall;
+  setActiveCall(null);
+  setRemoteStream(null);
+  if (session) await session.endCall();
+  setCallStatus("Call ended");
+}
+
+function selectChat(chat: Chat) {
     setSelectedId(chat.id);
 
     updateChat(chat.id, (current) => ({
@@ -1833,22 +1900,19 @@ async function handleSignOut() {
                 </button> <button
   className="iconBtn"
   title="Audio call"
-  onClick={() => setNotice("Audio calling is not connected yet.")}
+  aria-label="Start audio call"
+  disabled={Boolean(activeCall)}
+  onClick={() => void beginCall("audio")}
 >
   <Phone size={19} />
 </button>
 
-
 <button
   className="iconBtn"
   title="Video call"
-  onClick={() => {
-    setNotice(
-      selectedChat?.id.startsWith("group-")
-        ? "Group video calling is not available yet."
-        : "Video calling is not connected yet."
-    );
-  }}
+  aria-label="Start video call"
+  disabled={Boolean(activeCall)}
+  onClick={() => void beginCall("video")}
 >
   <Video size={19} />
 </button>
@@ -1929,13 +1993,27 @@ async function handleSignOut() {
 
           try {
             setCallStatus("Connecting...");
+            if (activeCall) {
+              setNotice("End the current call before accepting another.");
+              return;
+            }
+            setActiveCallType(call.type);
+            setRemoteStream(null);
             const session = await acceptCall(
               db,
               call.id,
               user.uid,
               {
+                onRemoteStream: (stream) => setRemoteStream(stream),
                 onStatus: (status) => {
-                  setCallStatus(String(status));
+                  if (status === "connected") setCallStatus("Call connected");
+                  else if (status === "failed") setCallStatus("Connection failed. Check your network.");
+                  else if (status === "disconnected") setCallStatus("Call disconnected");
+                  else if (status === "ended" || status === "declined") {
+                    setActiveCall(null);
+                    setRemoteStream(null);
+                    setCallStatus(status === "declined" ? "Call declined" : "Call ended");
+                  }
                 },
               }
             );
@@ -1981,8 +2059,25 @@ async function handleSignOut() {
   </div>
 ))}
 
-{callStatus && (
-  <div className="notice">{callStatus}</div>
+{(activeCall || callStatus) && (
+  <div className="notice" style={{ display: "grid", gap: 10 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      <strong>{activeCallType === "video" ? "Video call" : "Audio call"}</strong>
+      <span>{callStatus}</span>
+    </div>
+    {activeCallType === "video" && activeCall && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
+        <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", minHeight: 110, maxHeight: 220, objectFit: "cover", background: "#080d18", borderRadius: 10 }} />
+        <video ref={remoteVideoRef} autoPlay playsInline style={{ width: "100%", minHeight: 110, maxHeight: 220, objectFit: "cover", background: "#080d18", borderRadius: 10 }} />
+      </div>
+    )}
+    <audio ref={remoteAudioRef} autoPlay />
+    {activeCall && (
+      <button type="button" className="secondaryBtn" onClick={() => void endActiveCall()} style={{ background: "#a52d42", borderColor: "#a52d42", color: "white" }}>
+        End call
+      </button>
+    )}
+  </div>
 )}
               
 
