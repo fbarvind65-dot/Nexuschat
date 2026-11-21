@@ -776,7 +776,7 @@ async function sendMessage() {
 
       updateChat(selectedChat.id, (chat) => ({
         ...chat,
-        messages: [...chat.messages, message],
+        messages: [...chat.messages.filter((item) => item.id !== message.id), message],
       }));
 
       setDraft("");
@@ -829,7 +829,7 @@ await setDoc(
 );
     updateChat(selectedChat.id, (chat) => ({
       ...chat,
-      messages: [...chat.messages, message],
+      messages: [...chat.messages.filter((item) => item.id !== message.id), message],
     }));
 
     setDraft("");
@@ -1035,7 +1035,7 @@ await setDoc(
 
       updateChat(targetChatId, (chat) => ({
         ...chat,
-        messages: [...chat.messages, forwarded],
+        messages: [...chat.messages.filter((item) => item.id !== forwarded.id), forwarded],
       }));
 
       setModal(null);
